@@ -1,0 +1,19 @@
+gesture_recognition_node:
+  ros__parameters:
+    device: 0
+    confidence: 0.60
+    frame_width: 640
+    frame_height: 480
+    show_window: true
+    mirror: true
+    max_result_age_s: 0.25
+robot_behavior_node:
+  ros__parameters:
+    watchdog_s: 0.50
+    odom_timeout_s: 0.50
+    stable_s: 0.20
+    linear_speed: 0.12
+    angular_speed: 0.42
+    leg_distance: 0.40
+    circle_radius: 0.60
+    arena_limit: 4.5

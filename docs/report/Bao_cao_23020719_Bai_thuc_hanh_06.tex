@@ -1,0 +1,246 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[T5]{fontenc}
+\usepackage{lmodern,newunicodechar}
+\input{vietnamese-unicode.tex}
+\usepackage[left=2cm,right=2cm,top=2cm,bottom=2cm]{geometry}
+\usepackage{amsmath,amssymb,graphicx,booktabs,array,float,caption,fvextra,titlesec,tocloft,needspace}
+\usepackage[unicode,hidelinks]{hyperref}
+\hypersetup{pdftitle={Báo cáo HRI -- Bài thực hành 06: Điều khiển TurtleBot 4 bằng cử chỉ tay},pdfauthor={Đỗ Việt Anh}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\setlength{\emergencystretch}{3em}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.14}
+\renewcommand{\contentsname}{Mục lục}
+\renewcommand{\figurename}{Hình}
+\renewcommand{\tablename}{Bảng}
+\titleformat{\section}{\large\bfseries}{\thesection}{.7em}{}[\titlerule]
+\titlespacing*{\section}{0pt}{13pt}{8pt}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{.7em}{}
+\titlespacing*{\subsection}{0pt}{9pt}{5pt}
+\captionsetup{font={small,it},labelfont={bf,up},labelsep=colon,skip=5pt}
+\setlength{\cftbeforesecskip}{3pt}
+\setcounter{tocdepth}{1}
+\fvset{fontsize=\small,breaklines=true,breakanywhere=true,breaksymbolleft={},frame=single,framesep=4pt}
+\newcommand{\code}[1]{\nolinkurl{#1}}
+\newcommand{\fig}[3]{\begin{figure}[H]\centering\includegraphics[width=#2\linewidth]{#1}\caption{#3}\end{figure}}
+\newcommand{\github}{https://github.com/vanhhhhh512/turtlebot4_bai06}
+\newcommand{\drive}{https://drive.google.com/drive/folders/1FdF8vADL3xgHH5QPhekMk_7wn1XFR4Jp?usp=drive_link}
+\raggedbottom
+\begin{document}
+\hypersetup{pageanchor=false}
+\begin{titlepage}
+\thispagestyle{empty}\centering
+\vspace*{1.5cm}
+{\large\bfseries ĐẠI HỌC QUỐC GIA HÀ NỘI\\[3pt]TRƯỜNG ĐẠI HỌC CÔNG NGHỆ\par}
+\vspace{.5cm}
+\includegraphics[width=3.2cm]{uet_logo.png}\par
+\vspace{.35cm}
+{\LARGE\bfseries BÁO CÁO HRI\par}
+{\Large BÀI THỰC HÀNH 06\par}
+\vspace{.2cm}
+{\Large\bfseries GIAO TIẾP PHI NGÔN NGỮ\\[5pt]ĐIỀU KHIỂN TURTLEBOT 4\\[5pt]BẰNG CỬ CHỈ TAY\par}
+\vspace{1.5cm}
+\begin{tabular}{@{}ll@{}}
+\textbf{Họ và tên sinh viên:}&Đỗ Việt Anh\\[8pt]
+\textbf{Mã sinh viên:}&23020719\\[8pt]
+\textbf{Lớp:}&K68E-RE\\[8pt]
+\textbf{Giảng viên hướng dẫn:}&Kỹ sư Nguyễn Quốc Bảo
+\end{tabular}
+\vfill
+Mã nguồn GitHub: \href{\github}{turtlebot4\_bai06}\\[4pt]
+Video demo: \href{\drive}{Google Drive -- Bài 06}
+\vspace{.3cm}
+\end{titlepage}
+\hypersetup{pageanchor=true}
+\pagenumbering{arabic}
+\tableofcontents
+\section{Mục tiêu và môi trường sử dụng}
+Bài thực hành sử dụng webcam laptop để nhận diện cử chỉ tay bằng OpenCV và
+MediaPipe, sau đó điều khiển TurtleBot 4 trong Gazebo qua ROS 2. Người điều khiển
+chọn hành vi bằng tay, xác nhận bằng ngón cái và có thể dừng hoặc hủy khi cần.
+Các chuyển động trong phần demo được điều khiển bằng cử chỉ.
+
+\begin{table}[H]\centering\small
+\begin{tabular}{@{}p{3.6cm}p{12.4cm}@{}}\toprule
+Thành phần & Môi trường sử dụng\\\midrule
+Hệ điều hành, ROS & Ubuntu 22.04, ROS 2 Humble, Python 3.10.12.\\
+Mô phỏng & TurtleBot 4 Standard, Ignition Gazebo Fortress.\\
+Nhận diện & MediaPipe Gesture Recognizer 0.10.21, model \code{gesture_recognizer.task}.\\
+Ảnh và hiển thị & OpenCV 4.11.0, NumPy 1.26.4, webcam laptop \code{/dev/video0}.\\
+World & Sàn trống 12 × 12 m; giới hạn điều khiển \( |x|, |y| \leq 4{,}5\,\mathrm{m}\).\\\bottomrule
+\end{tabular}
+\caption{Môi trường triển khai Bài 06.}
+\end{table}
+\clearpage
+
+\section{Cấu trúc hệ thống và luồng dữ liệu}
+\fig{figures/system_flow.pdf}{1.0}{Hai node nhận diện và hành vi trao đổi qua topic ROS 2.}
+\code{gesture_recognition_node} dùng OpenCV đọc ảnh, đổi BGR sang RGB và chạy
+MediaPipe. Node lấy nhãn cùng điểm nhận diện, vẽ 21 điểm và đường nối bàn tay,
+hiển thị trạng thái robot rồi publish kết quả mới qua \code{/detected_gesture}.
+
+\code{robot_behavior_node} subscribe nhãn cử chỉ, lưu lựa chọn và chỉ phát vận tốc
+sau xác nhận. Timer điều khiển chạy 20 Hz, độc lập với suy luận ảnh để tiếp tục
+kiểm tra điều kiện dừng khi camera hoặc nhận diện bị gián đoạn.
+
+\begin{table}[H]\centering\small
+\begin{tabular}{@{}p{4.1cm}p{4.5cm}p{7.2cm}@{}}\toprule
+Topic & Kiểu message & Vai trò\\\midrule
+\code{/detected_gesture} & \code{std_msgs/msg/String} & Nhãn cử chỉ mới, kể cả \code{NO_HAND}/\code{UNKNOWN}.\\
+\code{/cmd_vel} & \code{geometry_msgs/msg/Twist} & Vận tốc thẳng \code{linear.x} và quay \code{angular.z}.\\
+\code{/odom} & \code{nav_msgs/msg/Odometry} & Quãng đường và góc quay thực hiện.\\
+\code{/dock_status} & \code{irobot_create_msgs/msg/DockStatus} & Chặn chạy khi robot chưa ra khỏi dock.\\
+\code{/hazard_detection} & \code{irobot_create_msgs/msg/HazardDetectionVector} & Nhận bump, cliff, stall, wheel drop.\\
+\code{/behavior_status} & \code{std_msgs/msg/String} & JSON trạng thái, hành vi, pha và chu kỳ.\\\bottomrule
+\end{tabular}
+\caption{Các topic chính.}
+\end{table}
+
+\textbf{Các file trong package.}
+\code{gesture_recognition_node.py} xử lý webcam và model;
+\code{wave_detector.py} nhận chuyển động vẫy tay;
+\code{visualization.py} vẽ khung tay.
+\code{robot_behavior_node.py} quản lý hành vi và điều kiện dừng.
+\code{config/gestures.yaml} lưu ngưỡng nhận diện, tốc độ và thời gian chờ.
+\code{launch/demo.launch.py} mở Gazebo, bridge, robot và hai node;
+\code{worlds/gesture_arena.sdf} tạo môi trường trống.
+\clearpage
+
+\section{Nhận diện và quy ước sáu cử chỉ}
+\begin{table}[H]\centering\small
+\begin{tabular}{@{}p{3.1cm}p{5.0cm}p{7.7cm}@{}}\toprule
+Cử chỉ & Cách thực hiện & Hành vi\\\midrule
+Wave & Xòe tay, đưa bàn tay qua lại theo phương ngang. & Chọn chào: xoay trái, phải rồi về hướng gần ban đầu.\\
+Pointing Up & Duỗi ngón trỏ lên, gập các ngón còn lại. & Chọn tiến--lùi 4 chu kỳ, tổng 8 chặng.\\
+Victory & Duỗi ngón trỏ và ngón giữa thành chữ V. & Chọn đi theo quỹ đạo tròn một vòng.\\
+Thumbs Up & Nắm các ngón và giơ ngón cái. & Xác nhận lựa chọn, thực hiện đúng một lần.\\
+Open Palm & Xòe cả năm ngón về phía camera. & Dừng ngay khi đang chạy, xóa lựa chọn.\\
+Closed Fist & Nắm kín bàn tay. & Hủy hành vi, trở về trạng thái chờ.\\\bottomrule
+\end{tabular}
+\caption{Quy ước cử chỉ và hành vi. Mọi hành vi chuyển động đều cần xác nhận.}
+\end{table}
+
+\begin{minipage}[t]{.29\linewidth}\centering
+\vspace{0pt}\includegraphics[width=.94\linewidth]{figures/hand_landmarks.pdf}
+\captionof{figure}{Sơ đồ 21 điểm bàn tay.}
+\end{minipage}\hfill
+\begin{minipage}[t]{.67\linewidth}\vspace{0pt}
+\textbf{Năm cử chỉ tĩnh.} MediaPipe trả về nhãn và confidence. Chương trình dùng
+ngưỡng 0,60; tên class của ngón cái trong model là \code{Thumb_Up}.
+Confidence là điểm do model trả về, không phải độ chính xác của toàn hệ thống.
+
+\textbf{Cử chỉ Wave.} Model mặc định không có class Wave. Chương trình tính tâm
+bàn tay từ các điểm 0, 5, 9, 17 và theo dõi tọa độ ngang qua nhiều frame.
+Wave cần ít nhất hai lần đổi chiều trong 1,6 s, biên độ mỗi lần tối thiểu 0,085
+chiều rộng ảnh và chuyển động ngang lớn hơn chuyển động dọc. Tay mở đứng yên
+được nhận là Open Palm.
+\end{minipage}
+
+\textbf{Phân biệt Wave và Open Palm.}
+Khi robot đang chạy, Open Palm được chuyển thẳng thành lệnh dừng; không chờ nhận
+Wave. Khi đứng yên, Wave chỉ tạo lựa chọn chào. Sau sự kiện Wave có tối đa 0,6 s
+đổi từ tay mở sang Thumb Up; giữ tay mở quá khoảng đó sẽ xóa lựa chọn.
+
+Cửa sổ webcam hiển thị ảnh gương, khung tay, nhãn, điểm model và trạng thái robot.
+Chỉ một tay được dùng để điều khiển. Kết quả có nhiều tay được coi là mơ hồ và làm
+robot dừng. Sau khi xác nhận, cần giữ một cử chỉ hợp lệ trong ảnh để duy trì tín hiệu.
+\clearpage
+
+\section{Điều khiển hành vi và cơ chế dừng}
+\fig{figures/state_machine.pdf}{1.0}{Luồng chọn, xác nhận và thực hiện hành vi.}
+\textbf{Chào.} Sau Wave rồi Thumb Up, robot quay trái khoảng 0,45 rad, quay phải
+0,90 rad, sau đó quay trái 0,45 rad để trở về gần hướng ban đầu. Mỗi pha kết thúc
+theo góc quay tích lũy từ odometry.
+
+\textbf{Tiến--lùi.} Sau Pointing Up rồi Thumb Up, robot tiến 0,40 m và lùi 0,40 m
+cho mỗi chu kỳ, lặp bốn chu kỳ. Tiến độ được tính bằng độ dời odom chiếu lên hướng
+bắt đầu chặng. Giao diện hiển thị số chu kỳ từ 1/4 đến 4/4.
+
+\textbf{Đi tròn.} Sau Victory rồi Thumb Up, robot xoay tại chỗ để tâm vòng nằm xa
+dock, rồi chạy với \(v=0{,}12\,\mathrm{m/s}\), \(\omega=0{,}20\,\mathrm{rad/s}\).
+Bán kính cấu hình là \(R=v/\omega=0{,}60\,\mathrm{m}\). Robot dừng khi tổng góc quay
+ở pha đi tròn đạt \(2\pi\), không chỉ dựa vào thời gian ước lượng.
+
+\begin{table}[H]\centering\small
+\begin{tabular}{@{}p{4.5cm}p{11.4cm}@{}}\toprule
+Điều kiện & Xử lý trong chương trình\\\midrule
+Cử chỉ chọn/xác nhận & Cần ít nhất 3 kết quả cùng nhãn, ổn định tối thiểu 0,2 s.\\
+Giữ nguyên cử chỉ & Chỉ tạo một sự kiện; không chạy lại hoặc xếp thêm lệnh trong khi đang chạy.\\
+Open Palm, Closed Fist & Publish Twist bằng 0 ngay trong callback; xóa lựa chọn và về IDLE.\\
+Mất tay, camera lỗi, nhiều tay & Dừng ngay khi nhận kết quả tương ứng.\\
+Không có cử chỉ hợp lệ mới & Watchdog 0,5 s theo monotonic time; UNKNOWN không gia hạn quyền chạy.\\
+Kết quả suy luận đến muộn & Bỏ kết quả quá 0,25 s; không dùng nhãn cũ làm tín hiệu sống.\\
+Mất odom hoặc có hazard & Odom quá 0,5 s, ra ngoài vùng chạy hoặc bump/cliff/stall/wheel drop đều dừng.\\\bottomrule
+\end{tabular}
+\caption{Lọc nhiễu, chống lặp và điều kiện dừng.}
+\end{table}
+Vận tốc đầu ra bị chặn ở 0,15 m/s và 0,5 rad/s. Sau dừng hoặc mất tín hiệu,
+robot cần được chọn và xác nhận lại; tín hiệu trở lại không tự tiếp tục hành vi.
+Các khoảng cách, góc và tốc độ trên là giá trị cấu hình điều khiển.
+\clearpage
+
+\section{Kết quả chạy thử}
+Webcam laptop đã đọc được ảnh thật 640 × 480. Gazebo khởi chạy TurtleBot 4,
+action \code{/undock} trả về \code{SUCCEEDED}, robot về trạng thái chờ.
+Trong các lượt thử bằng webcam, log đã ghi nhận đủ năm nhãn tĩnh và các sự kiện
+chọn, xác nhận, hủy, mất tay hoặc hết hạn tín hiệu.
+
+\begin{table}[H]\centering\small
+\begin{tabular}{@{}p{4.6cm}p{11.2cm}@{}}\toprule
+Nội dung & Kết quả quan sát\\\midrule
+Chọn và xác nhận & Pointing Up/Victory tạo SELECTED; Thumb Up chuyển sang RUNNING.\\
+Đi tròn và căn hướng & Có pha ALIGN\_CIRCLE rồi CIRCLE; quỹ đạo odom thay đổi theo lệnh vận tốc.\\
+Hủy bằng nắm tay & Closed Fist đưa robot về IDLE, lệnh vận tốc về 0.\\
+Mất tín hiệu, nhiều tay & Ghi nhận dừng với GESTURE\_TIMEOUT và MULTIPLE\_HANDS.\\
+Kiểm tra logic & 16/16 trường hợp kiểm tra callback và odom giả qua; gồm xác nhận, chống lặp, 8 chặng và điều kiện dừng.\\\bottomrule
+\end{tabular}
+\caption{Kết quả có trong dữ liệu chạy thử và kiểm tra logic.}
+\end{table}
+\fig{figures/trajectories.pdf}{1.0}{Quỹ đạo odom ba lượt thử đi tròn, kết thúc do nhiều tay, hết tín hiệu và nắm tay.}
+\fig{figures/cancel_command.pdf}{.96}{Lệnh vận tốc về 0 sau sự kiện Closed Fist. Đây là lệnh điều khiển, không phải phép đo thời gian thân robot dừng hẳn.}
+Các lượt trên dùng để quan sát chạy và dừng giữa chừng. Log hiện có chưa ghi nhận
+hoàn thành chào, đủ bốn chu kỳ tiến--lùi và một vòng tròn bằng webcam; Wave và
+Open Palm khi đang chạy cũng cần đối chiếu thêm trong lượt demo đầy đủ.
+\clearpage
+
+\section{Cách chạy và liên kết bài nộp}
+\textbf{Cài đặt.} Máy cần ROS 2 Humble, TurtleBot 4 Simulator và Python 3.10.
+Trong workspace ROS 2, đặt package ở \code{src/bai06_turtlebot4}.
+Các bước cài phụ thuộc và build được ghi trong README của repo.
+
+\textbf{Chạy demo trên máy đã cấu hình.}
+\begin{Verbatim}
+cd /home/admin1/xla/wk4/week6/ros2_ws/src/bai06_turtlebot4
+./scripts/run_demo.sh
+\end{Verbatim}
+Script mở Gazebo và webcam, căn cửa sổ cạnh nhau, chuẩn bị undock rồi về chờ.
+Đợi robot ra khỏi dock trước khi chọn cử chỉ. Terminal in thư mục lưu kết quả
+và ROS domain của phiên chạy. Nhấn Ctrl+C tại terminal đó để đóng phiên.
+
+\textbf{Thao tác điều khiển.} Đưa một tay vào ảnh, thực hiện Wave, Pointing Up
+hoặc Victory để chọn; khi màn hình hiện SELECTED thì giơ Thumb Up để xác nhận.
+Tiếp tục giữ một cử chỉ hợp lệ trong ảnh trong lúc robot chạy. Xòe tay để dừng,
+nắm tay để hủy. Không dùng bàn phím để phát lệnh chuyển động trong phần demo.
+
+\textbf{Mã nguồn và video.}
+\begin{itemize}
+\item GitHub: \href{\github}{github.com/vanhhhhh512/turtlebot4\_bai06}.
+\item Video demo: \href{\drive}{thư mục Google Drive Bài 06}.
+\item Báo cáo PDF và source LaTeX: thư mục \code{docs/report/} trong repo.
+\end{itemize}
+
+\section*{Tài liệu tham khảo}
+\addcontentsline{toc}{section}{Tài liệu tham khảo}
+\small
+\begin{enumerate}
+\item Google AI Edge, \textit{Gesture recognition task guide}.\\
+\url{https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer}
+\item Google AI Edge, \textit{Gesture recognition guide for Python}.\\
+\url{https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer/python}
+\item OpenCV, \textit{Video I/O}.\\
+\url{https://docs.opencv.org/4.x/d8/dfe/classcv_1_1VideoCapture.html}
+\item TurtleBot 4, \textit{Simulation}.\\
+\url{https://turtlebot.github.io/turtlebot4-user-manual/software/simulation.html}
+\end{enumerate}
+\end{document}
