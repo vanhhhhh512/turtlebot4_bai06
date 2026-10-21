@@ -22,19 +22,22 @@ def generate_launch_description():
                                   'irobot_create_msgs/action/Undock', '{}'], output='screen')
     nodes = [
         Node(package='bai06_turtlebot4', executable='robot_behavior_node',
-             output='screen', parameters=[config, {'output_dir': output}]),
+             output='screen', parameters=[config, {'output_dir': output,
+                                                  'configure_sim_backup': True}]),
         Node(package='bai06_turtlebot4', executable='gesture_recognition_node',
              output='screen', parameters=[config, {
                  'model_path': ParameterValue(model, value_type=str),
                  'device': ParameterValue(LaunchConfiguration('device'), value_type=int),
                  'show_window': ParameterValue(LaunchConfiguration('show_webcam'), value_type=bool),
-                 'output_dir': output}]),
+                 'output_dir': output}],
+             condition=IfCondition(LaunchConfiguration('recognition'))),
     ]
     return LaunchDescription([
         DeclareLaunchArgument('output_dir', default_value='/tmp/bai06_run'),
         DeclareLaunchArgument('model_path', default_value=''),
         DeclareLaunchArgument('device', default_value='0'),
         DeclareLaunchArgument('show_webcam', default_value='true'),
+        DeclareLaunchArgument('recognition', default_value='true'),
         DeclareLaunchArgument('show_gazebo_gui', default_value='true'),
         SetEnvironmentVariable('IGN_GAZEBO_RESOURCE_PATH', ':'.join([
             os.path.join(sim, 'worlds'), '/opt/ros/humble/share',

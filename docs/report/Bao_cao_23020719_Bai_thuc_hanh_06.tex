@@ -156,6 +156,8 @@ theo góc quay tích lũy từ odometry.
 \textbf{Tiến--lùi.} Sau Pointing Up rồi Thumb Up, robot tiến 0,40 m và lùi 0,40 m
 cho mỗi chu kỳ, lặp bốn chu kỳ. Tiến độ được tính bằng độ dời odom chiếu lên hướng
 bắt đầu chặng. Giao diện hiển thị số chu kỳ từ 1/4 đến 4/4.
+Trong Gazebo, launch cấu hình Create 3 ở chế độ \code{safety_override=backup_only}
+để cho phép lùi hết 0,40 m; node vẫn kiểm tra hazard, vùng chạy và lệnh dừng.
 
 \textbf{Đi tròn.} Sau Victory rồi Thumb Up, robot xoay tại chỗ để tâm vòng nằm xa
 dock, rồi chạy với \(v=0{,}12\,\mathrm{m/s}\), \(\omega=0{,}20\,\mathrm{rad/s}\).
@@ -193,7 +195,8 @@ Chọn và xác nhận & Pointing Up/Victory tạo SELECTED; Thumb Up chuyển s
 Đi tròn và căn hướng & Có pha ALIGN\_CIRCLE rồi CIRCLE; quỹ đạo odom thay đổi theo lệnh vận tốc.\\
 Hủy bằng nắm tay & Closed Fist đưa robot về IDLE, lệnh vận tốc về 0.\\
 Mất tín hiệu, nhiều tay & Ghi nhận dừng với GESTURE\_TIMEOUT và MULTIPLE\_HANDS.\\
-Kiểm tra logic & 16/16 trường hợp kiểm tra callback và odom giả qua; gồm xác nhận, chống lặp, 8 chặng và điều kiện dừng.\\\bottomrule
+Kiểm tra node trong Gazebo & Hoàn thành 4 chu kỳ, 8 chặng; mỗi chặng đo được 0,403--0,405 m, tổng thời gian thực 29,37 s. Lượt kiểm tra dùng nhãn cử chỉ giả, không thay thế demo webcam.\\
+Kiểm tra logic & 17/17 trường hợp kiểm tra callback và odom giả qua; gồm xác nhận, chống lặp, 8 chặng và điều kiện dừng.\\\bottomrule
 \end{tabular}
 \caption{Kết quả có trong dữ liệu chạy thử và kiểm tra logic.}
 \end{table}

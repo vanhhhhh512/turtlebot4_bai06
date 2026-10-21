@@ -43,6 +43,10 @@ cd ~/turtlebot6_github_ws/src/bai06_turtlebot4
 Script build package, tạo thư mục output mới, ROS domain và Gazebo partition
 riêng; mở Gazebo, TurtleBot 4, webcam và hai node. Robot thực hiện action `/undock`
 trong bước chuẩn bị rồi về chờ. Chỉ chọn cử chỉ khi robot đã ra khỏi dock.
+Launch Bài 06 cấu hình riêng controller Gazebo với `safety_override=backup_only`
+để cho phép lùi hết chặng 0,40 m. Node chờ cấu hình thành công trước khi cho xác
+nhận chạy; giới hạn tốc độ, vùng chạy, dừng/hủy và theo dõi hazard vẫn hoạt động.
+Cấu hình này chỉ được bật bởi launch mô phỏng Bài 06.
 
 Cửa sổ webcam hiển thị **21 điểm và đường nối bàn tay, nhãn, confidence, trạng thái
 robot và số chu kỳ**. Ảnh được lật gương; phần chữ đặt ngoài ảnh để không che tay.
