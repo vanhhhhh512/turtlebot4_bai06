@@ -86,9 +86,11 @@ class GestureRecognitionNode(Node):
             if data.get('phase'):
                 self.behavior += f" / {data['phase']}"
             if not self.ready:
-                self.behavior = f'PREPARING / {self.blocked_reason}'
-            else:
-                self.behavior = 'READY / ' + self.behavior
+                reasons = {'WAITING_FOR_CONTROLLERS': 'waiting for wheels',
+                           'WAITING_FOR_DOCK_AND_ODOM': 'waiting for robot data',
+                           'WAITING_FOR_UNDOCK': 'still docked',
+                           'UNDOCKING': 'undocking', 'WAITING_FOR_ODOM': 'no odometry'}
+                self.behavior += ' / ' + reasons.get(self.blocked_reason, self.blocked_reason)
             if self.selected == 'FORWARD_BACKWARD_4' and self.behavior_state == 'RUNNING':
                 self.behavior += f" {min(data.get('cycle', 0) + 1, 4)}/4"
         except (KeyError, ValueError):
@@ -127,29 +129,25 @@ class GestureRecognitionNode(Node):
         if time.monotonic() - now > self.max_result_age_s:
             raw = 'STALE_RESULT'
             pose = None
-        if self.ready:
-            label = self.router.update(now, raw, pose, self.behavior_state)
-        else:
-            self.router.reset()
-            label = raw if raw in {'NO_HAND', 'MULTIPLE_HANDS', 'STALE_RESULT',
-                                   'Open_Palm', 'Closed_Fist'} else 'NOT_READY'
+        label = self.router.update(now, raw, pose, self.behavior_state)
         self.publish(label, confidence, raw, now, pose)
         if self.show:
             draw_hand_landmarks(frame, result.hand_landmarks)
             display = cv2.copyMakeBorder(frame, 105, 65, 0, 0,
                                          cv2.BORDER_CONSTANT, value=(20, 20, 20))
-            pending = self.router.transition_until > now
-            title = ('ROBOT PREPARING' if not self.ready else
-                     'WAVE - GREET SELECTED' if pending else
+            pending = (self.router.transition_until > now
+                       and self.behavior_state == 'SELECTED' and self.selected == 'GREET')
+            title = ('WAVE - GREET SELECTED' if pending else
                      'OPEN HAND - curl/extend fingers' if label == 'Open_Palm'
-                     and self.behavior_state == 'IDLE' else label)
-            score = 'motion rule' if pending or label == 'Wave' else f'model {confidence:.2f}'
+                     and self.behavior_state == 'IDLE' else
+                     'Wave' if label == 'WAVE_PENDING' else label)
+            score = ('motion rule' if label in {'Wave', 'WAVE_PENDING'}
+                     else f'model {confidence:.2f}')
             cv2.putText(display, f'{title} | {score}', (12, 29),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.75, (70, 255, 100), 2)
             cv2.putText(display, self.behavior, (12, 57),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.48, (240, 240, 240), 1)
-            hint = ('WAIT: robot controllers / undock' if not self.ready else
-                    f'THUMB UP to confirm | {self.router.transition_until - now:.1f}s'
+            hint = (f'THUMB UP to confirm | {self.router.transition_until - now:.1f}s'
                     if pending
                     else 'THUMB UP to confirm' if self.behavior_state == 'SELECTED'
                     else 'Keep one hand visible' if self.behavior_state == 'RUNNING'

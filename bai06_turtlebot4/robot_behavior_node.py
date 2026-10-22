@@ -93,6 +93,7 @@ class RobotBehaviorNode(Node):
         self.create_subscription(String, '/simulation_ready', self.on_sim_ready, 1)
         self.sim_backup_ready = not self.get_parameter('configure_sim_backup').value
         self.sim_setup_future = None
+        self.sim_setup_sent_at = 0.0
         if not self.sim_backup_ready:
             self.sim_parameter_client = self.create_client(
                 SetParameters, '/motion_control/set_parameters')
@@ -103,13 +104,22 @@ class RobotBehaviorNode(Node):
     def configure_sim_backup(self):
         # Enabled only by this package's Gazebo launch. Create 3 otherwise
         # exhausts its short backup buffer before a 0.40 m reverse leg.
-        if self.sim_backup_ready or self.sim_setup_future is not None:
+        if self.sim_backup_ready:
             return
+        if self.sim_setup_future is not None:
+            if time.monotonic() - self.sim_setup_sent_at < 3.0:
+                return
+            expired = self.sim_setup_future
+            self.sim_setup_future = None
+            self.sim_parameter_client.remove_pending_request(expired)
+            expired.cancel()
+            self.get_logger().warning('Backup parameter response timed out; retrying')
         if not self.sim_parameter_client.service_is_ready():
             return
         request = SetParameters.Request(parameters=[Parameter(
             'safety_override', Parameter.Type.STRING, 'backup_only').to_parameter_msg()])
         self.sim_setup_future = self.sim_parameter_client.call_async(request)
+        self.sim_setup_sent_at = time.monotonic()
         self.sim_setup_future.add_done_callback(self.on_sim_backup_configured)
 
     def on_sim_ready(self, msg):
@@ -123,6 +133,8 @@ class RobotBehaviorNode(Node):
             pass
 
     def on_sim_backup_configured(self, future):
+        if future is not self.sim_setup_future:
+            return
         try:
             response = future.result()
             self.sim_backup_ready = bool(response.results) and all(
@@ -130,7 +142,7 @@ class RobotBehaviorNode(Node):
             if self.sim_backup_ready:
                 self.event('SIM_BACKUP_READY')
             else:
-                self.get_logger().warning('Gazebo backup configuration rejected; motion blocked')
+                self.get_logger().warning('Gazebo backup configuration rejected; reverse behavior blocked')
         except Exception as exc:
             self.get_logger().warning(f'Gazebo backup configuration failed: {exc}')
         finally:
@@ -146,10 +158,11 @@ class RobotBehaviorNode(Node):
         self.publish_status(reason)
 
     def publish_status(self, reason=''):
-        ready = self.sim_ready and self.docked is False and self.sim_backup_ready
+        ready = self.sim_ready and self.docked is False
         blocked = (self.preparation_reason if not self.sim_ready else
                    'WAITING_FOR_UNDOCK' if self.docked is not False else
-                   'CONFIGURING_SIMULATION' if not self.sim_backup_ready else '')
+                   'WAITING_FOR_REVERSE_PERMISSION' if self.selected == 'FORWARD_BACKWARD_4'
+                   and not self.sim_backup_ready else '')
         self.status_pub.publish(String(data=json.dumps(dict(
             state=self.state, selected=self.selected, phase=self.phase,
             cycle=self.cycle, reason=reason, sim_backup_ready=self.sim_backup_ready,
@@ -242,7 +255,7 @@ class RobotBehaviorNode(Node):
         elif label == 'Thumb_Up' and self.state == 'SELECTED':
             if self.docked is not False:
                 self.stop('NOT_UNDOCKED')
-            elif not self.sim_backup_ready:
+            elif self.selected == 'FORWARD_BACKWARD_4' and not self.sim_backup_ready:
                 self.stop('SIM_BACKUP_NOT_READY')
             elif self.hazard_active:
                 self.stop('HAZARD_AT_CONFIRM')

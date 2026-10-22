@@ -73,8 +73,8 @@ World & Sàn trống 12 × 12 m; giới hạn điều khiển \( |x|, |y| \leq 4
 \caption{Môi trường triển khai Bài 06.}
 \end{table}
 \code{simulation_ready_node} kiểm tra và kích hoạt controller bánh xe rồi gọi
-undock. Webcam hiện PREPARING khi chưa sẵn sàng; chỉ chọn và xác nhận khi hiện
-READY, robot đã ra khỏi dock và odom còn mới.
+undock. Webcam luôn nhận diện tay; dòng trạng thái robot cho biết nếu chưa
+ra khỏi dock hoặc thiếu odom. Quyền lùi chỉ chặn tiến--lùi, không chặn chào/đi tròn.
 \clearpage
 
 \section{Cấu trúc hệ thống và luồng dữ liệu}
@@ -203,7 +203,7 @@ Hủy bằng nắm tay & Closed Fist đưa robot về IDLE, lệnh vận tốc v
 Mất tín hiệu, nhiều tay & Ghi nhận dừng với GESTURE\_TIMEOUT và MULTIPLE\_HANDS.\\
 Kiểm tra node trong Gazebo & Hoàn thành 4 chu kỳ, 8 chặng; mỗi chặng đo được 0,403--0,405 m, tổng thời gian thực 29,37 s. Kiểm tra Wave mới cũng hoàn thành ba pha chào, tổng góc quay tuyệt đối 1,89 rad.
 Đầu vào là landmarks/nhãn giả, không thay thế demo webcam.\\
-Kiểm tra logic & 25/25 trường hợp kiểm tra qua; gồm Wave co--duỗi ngón, xác nhận, chống lặp, 8 chặng và dừng.\\\bottomrule
+Kiểm tra logic & 27/27 trường hợp kiểm tra qua; gồm Wave co--duỗi ngón, xác nhận, chống lặp, 8 chặng và dừng.\\\bottomrule
 \end{tabular}
 \caption{Kết quả có trong dữ liệu chạy thử và kiểm tra logic.}
 \end{table}
@@ -225,7 +225,7 @@ cd /home/admin1/xla/wk4/week6/ros2_ws/src/bai06_turtlebot4
 ./scripts/run_demo.sh
 \end{Verbatim}
 Script mở Gazebo và webcam, căn cửa sổ cạnh nhau, chuẩn bị undock rồi về chờ.
-Đợi webcam hiện READY trước khi chọn cử chỉ. Terminal in thư mục lưu kết quả
+Đợi robot ra khỏi dock trước khi xác nhận hành vi. Terminal in thư mục lưu kết quả
 và ROS domain của phiên chạy. Nhấn Ctrl+C tại terminal đó để đóng phiên.
 
 \textbf{Thao tác điều khiển.} Đưa một tay vào ảnh, thực hiện Wave, Pointing Up

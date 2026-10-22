@@ -73,10 +73,14 @@ Một frame UNKNOWN xen giữa không xóa chuỗi nếu cách mẫu hợp lệ 
 Giữ nguyên cử chỉ chỉ tạo một sự kiện; giữ Thumbs Up không kích hoạt lại sau khi
 hành vi hoàn thành.
 
-**Chuẩn bị:** chờ webcam hiện `READY`. `simulation_ready_node` kiểm tra hai
-controller bánh xe, nạp/cấu hình/kích hoạt nếu cần, rồi gọi `/undock` và xác nhận
-robot đã ra khỏi dock với odom mới. Khi còn `PREPARING`, cử chỉ chưa được chọn
-hoặc thực hiện; dòng trạng thái cho biết đang chờ controller, undock hay odom.
+Script tự chuẩn bị controller và cho robot ra khỏi dock. Camera luôn hiển thị
+nhận diện cử chỉ; nếu robot còn trong dock hoặc thiếu odom thì lý do nằm ở dòng
+trạng thái robot. `simulation_ready_node` kiểm tra/kích hoạt hai controller và
+gọi `/undock`; controller vẫn chặn chuyển động khi robot chưa sẵn sàng.
+
+Cấu hình quyền lùi chỉ áp dụng cho hành vi tiến–lùi, không chặn chào hoặc đi
+tròn. Yêu cầu cấu hình quá 3 giây không có phản hồi được hủy và gửi lại; camera
+không đợi yêu cầu này để nhận diện tay.
 
 **Wave:** đưa lòng bàn tay ra trước webcam, giữ cổ tay tương đối yên và
 **duỗi → co → duỗi → co → duỗi các ngón** trong khoảng 1–3 giây. Ít nhất ba
