@@ -205,7 +205,11 @@ class GestureRouter:
             return raw
         if state in {'RUNNING', 'PAUSED'}:
             self.reset()
-            return 'Open_Palm' if raw == 'Open_Palm' or pose and pose.open else raw
+            # Hand tracking can briefly hallucinate extended fingers as a
+            # Thumb Up leaves the image. Geometry alone is not a stop gesture:
+            # require the fresh, confidence-filtered Open Palm prediction.
+            # A valid stop still passes immediately, without Wave/debounce.
+            return raw
         if raw != self.static_label:
             self.static_label, self.static_since = raw, now
         held = now-self.static_since
@@ -232,6 +236,6 @@ class GestureRouter:
         if self.wave.update(now, pose, open_hint=raw == 'Open_Palm'):
             self.transition_until = now+self.confirm_window_s
             return 'Wave'
-        if raw == 'Open_Palm' or pose.open:
+        if raw == 'Open_Palm':
             return 'Open_Palm'
         return 'UNKNOWN'

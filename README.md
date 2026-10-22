@@ -67,6 +67,8 @@ hoặc bàn phím phát vận tốc trong lúc demo. Nhấn Ctrl+C tại termina
 Mọi chuyển động, kể cả chào, đều cần chọn rồi xác nhận. **Sau khi Thumb Up
 xác nhận, có thể bỏ tay khỏi ảnh; robot tự chạy hết tác vụ theo odometry.**
 Frame `NO_HAND` hoặc `UNKNOWN` mới vẫn cho biết camera/node nhận diện đang chạy.
+Không suy `Open_Palm` từ riêng hình dạng landmarks khi model trả `None`/`UNKNOWN`;
+khung xương sai thoáng qua lúc rút Thumb Up khỏi ảnh không tạo lệnh tạm dừng.
 Ở trạng thái SELECTED, bỏ tay ra sẽ hủy lựa chọn.
 
 **Open Palm → PAUSED:** vận tốc về 0 ngay, giữ pha, chu kỳ và tiến độ chặng.
@@ -222,7 +224,7 @@ kênh điều khiển. `CAMERA_ERROR`, `MULTIPLE_HANDS` và `STALE_RESULT` hủy
 
 ## Báo cáo và video demo
 
-Đã qua 44 kiểm tra logic và 15 nhóm kiểm tra trong Gazebo với nhãn/landmarks
+Đã qua 46 kiểm tra logic và 15 nhóm kiểm tra trong Gazebo với nhãn/landmarks
 thử, odom và controller thật. Cả ba tác vụ hoàn thành khi đầu vào sau xác nhận
 là NO_HAND; mỗi tác vụ có tạm dừng rồi tiếp tục đúng pha. Tiến–lùi đủ 8 chặng,
 0,401–0,411 m/chặng; vòng tròn 6,292 rad, lệch điểm cuối khoảng 1,13 cm.

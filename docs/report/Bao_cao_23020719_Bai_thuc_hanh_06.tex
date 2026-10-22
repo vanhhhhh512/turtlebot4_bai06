@@ -150,7 +150,8 @@ có sẵn của model.
 
 \textbf{Phân biệt Wave và Open Palm.}
 Khi robot đang chạy, Open Palm được chuyển thẳng thành lệnh tạm dừng; không chờ nhận
-Wave. Khi đang IDLE, Wave chỉ tạo lựa chọn chào. Cửa sổ hiển thị bộ đếm 3 s để
+Wave. Lệnh này cần nhãn Open Palm mới đạt ngưỡng từ model; riêng hình dạng
+landmarks khi model trả UNKNOWN không tạo lệnh dừng. Khi đang IDLE, Wave chỉ tạo lựa chọn chào. Cửa sổ hiển thị bộ đếm 3 s để
 đổi từ tay mở sang Thumb Up; tay mở trong đoạn này giữ lựa chọn, không tạo lệnh
 chạy. Hết đoạn chuyển mà vẫn mở tay thì chuyển PAUSED, giữ lựa chọn. UNKNOWN ngắn tối đa 0,18 s
 không xóa các mẫu xác nhận; nó không xác nhận hành vi. Khi đang thu Wave, nắm
@@ -220,7 +221,7 @@ vi và cơ chế dừng, chưa thay thế video người thực hiện đủ sá
 \begin{table}[H]\centering\small
 \begin{tabular}{@{}p{4.5cm}p{11.3cm}@{}}\toprule
 Nội dung & Kết quả\\\midrule
-Kiểm tra logic & 44/44 trường hợp qua; chọn/xác nhận, Wave, Thumb Up, PAUSED/resume, tự chạy và lỗi kênh.\\
+Kiểm tra logic & 46/46 trường hợp qua; chọn/xác nhận, Wave, Thumb Up, PAUSED/resume, tự chạy và lỗi kênh.\\
 Kiểm tra Gazebo & 15/15 nhóm qua; cả ba tác vụ hoàn thành với NO\_HAND sau xác nhận và có tạm dừng giữa chừng.\\
 Tiến--lùi & Đủ 4 chu kỳ/8 chặng; độ dài mỗi chặng 0,401--0,411 m. Tạm dừng ở chặng lùi của lượt 3 rồi tiếp tục.\\
 Đi tròn & Góc quay pha CIRCLE đạt 6,292 rad; cách điểm đầu khoảng 0,0113 m.\\
