@@ -7,6 +7,7 @@
   <buildtool_depend>ament_python</buildtool_depend>
   <exec_depend>rclpy</exec_depend><exec_depend>std_msgs</exec_depend>
   <exec_depend>rcl_interfaces</exec_depend>
+  <exec_depend>controller_manager_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend><exec_depend>nav_msgs</exec_depend>
   <exec_depend>irobot_create_msgs</exec_depend>
   <exec_depend>turtlebot4_ignition_bringup</exec_depend>

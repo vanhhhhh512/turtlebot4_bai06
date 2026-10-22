@@ -38,6 +38,7 @@ class RobotBehaviorNode(Node):
             ('leg_distance', 0.4), ('circle_radius', 0.6),
             ('arena_limit', 4.5), ('output_dir', ''),
             ('configure_sim_backup', False),
+            ('require_sim_ready', False),
         ]:
             self.declare_parameter(name, value)
         self.cfg = {key: self.get_parameter(key).value for key in [
@@ -87,6 +88,9 @@ class RobotBehaviorNode(Node):
         self.fired = False
         self.last_label = None
         self.last_cmd = (0.0, 0.0)
+        self.sim_ready = not self.get_parameter('require_sim_ready').value
+        self.preparation_reason = 'WAITING_FOR_CONTROLLERS'
+        self.create_subscription(String, '/simulation_ready', self.on_sim_ready, 1)
         self.sim_backup_ready = not self.get_parameter('configure_sim_backup').value
         self.sim_setup_future = None
         if not self.sim_backup_ready:
@@ -107,6 +111,16 @@ class RobotBehaviorNode(Node):
             'safety_override', Parameter.Type.STRING, 'backup_only').to_parameter_msg()])
         self.sim_setup_future = self.sim_parameter_client.call_async(request)
         self.sim_setup_future.add_done_callback(self.on_sim_backup_configured)
+
+    def on_sim_ready(self, msg):
+        try:
+            data = json.loads(msg.data)
+            self.sim_ready = bool(data['ready'])
+            self.preparation_reason = data.get('reason', 'PREPARING')
+            if not self.sim_ready and self.state in {'SELECTED', 'RUNNING'}:
+                self.stop('ROBOT_NOT_READY')
+        except (ValueError, KeyError, TypeError):
+            pass
 
     def on_sim_backup_configured(self, future):
         try:
@@ -132,9 +146,14 @@ class RobotBehaviorNode(Node):
         self.publish_status(reason)
 
     def publish_status(self, reason=''):
+        ready = self.sim_ready and self.docked is False and self.sim_backup_ready
+        blocked = (self.preparation_reason if not self.sim_ready else
+                   'WAITING_FOR_UNDOCK' if self.docked is not False else
+                   'CONFIGURING_SIMULATION' if not self.sim_backup_ready else '')
         self.status_pub.publish(String(data=json.dumps(dict(
             state=self.state, selected=self.selected, phase=self.phase,
-            cycle=self.cycle, reason=reason, sim_backup_ready=self.sim_backup_ready))))
+            cycle=self.cycle, reason=reason, sim_backup_ready=self.sim_backup_ready,
+            ready=ready, blocked_reason=blocked))))
 
     def on_odom(self, msg):
         now = time.monotonic()
@@ -167,6 +186,14 @@ class RobotBehaviorNode(Node):
         now = time.monotonic()
         label = msg.data
         self.last_label = label
+        if label == 'WAVE_PENDING':
+            if self.state == 'SELECTED' and self.selected == 'GREET':
+                self.last_gesture_at = now
+            return
+        if not self.sim_ready and (label in CHOICES or label == 'Thumb_Up'):
+            self.send_cmd(0.0, 0.0)
+            self.publish_status('ROBOT_NOT_READY')
+            return
         if label in CHOICES or label in {'Thumb_Up', 'Open_Palm', 'Closed_Fist'}:
             self.last_gesture_at = now
         if label == 'Open_Palm':

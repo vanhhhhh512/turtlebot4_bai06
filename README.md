@@ -56,7 +56,7 @@ hoặc bàn phím phát vận tốc trong lúc demo. Nhấn Ctrl+C tại termina
 
 | Cử chỉ | Hành vi |
 |---|---|
-| Wave: xòe tay, đưa qua lại ngang | Chọn chào trái–phải rồi về hướng gần ban đầu |
+| Wave: đưa tay ra trước camera, co–duỗi các ngón hai lần | Chọn chào trái–phải rồi về hướng gần ban đầu |
 | Pointing Up: giơ ngón trỏ | Chọn tiến–lùi 4 chu kỳ, mỗi chặng 0,40 m |
 | Victory: giơ hai ngón chữ V | Chọn đi tròn một vòng, bán kính 0,60 m |
 | Thumbs Up: giơ ngón cái | Xác nhận và thực hiện lựa chọn đúng một lần |
@@ -73,28 +73,32 @@ Một frame UNKNOWN xen giữa không xóa chuỗi nếu cách mẫu hợp lệ 
 Giữ nguyên cử chỉ chỉ tạo một sự kiện; giữ Thumbs Up không kích hoạt lại sau khi
 hành vi hoàn thành.
 
-**Wave:** hướng bàn tay mở về camera, đưa qua lại trái–phải–trái trong khoảng
-1–2 giây. Bộ nhận diện dùng cả tâm bàn tay và đầu ngón nên nhận được cả kiểu vẫy
-bằng cổ tay. Cần hai lần đổi chiều trong 2,4 s; ngưỡng mỗi chặng bằng 30% bề rộng
-bàn tay, tối thiểu 2,5% và tối đa 7% chiều rộng ảnh. Nhãn tĩnh `UNKNOWN` không
-xóa chuỗi nếu landmarks vẫn cho thấy ít nhất ba ngón duỗi. Một khoảng không
-phân loại được chỉ được nối tối đa 0,2 s; mất tay, nhiều tay hoặc kết quả quá cũ
-xóa chuỗi ngay. Tay đứng yên và chuyển động dọc không được tính là Wave.
+**Chuẩn bị:** chờ webcam hiện `READY`. `simulation_ready_node` kiểm tra hai
+controller bánh xe, nạp/cấu hình/kích hoạt nếu cần, rồi gọi `/undock` và xác nhận
+robot đã ra khỏi dock với odom mới. Khi còn `PREPARING`, cử chỉ chưa được chọn
+hoặc thực hiện; dòng trạng thái cho biết đang chờ controller, undock hay odom.
 
-Cửa sổ hiện `turns 0/2`, `1/2` khi đang thu chuyển động. Khi nhận Wave sẽ hiện
-`WAVE - GREET SELECTED` cùng bộ đếm **3 giây để đổi sang Thumbs Up**. Các frame
-tay mở mới trong đoạn này giữ lựa chọn chào, không lặp sự kiện chọn. UNKNOWN
-ngắn khi đổi tư thế không xóa bộ đếm; mất tay, nhiều tay, dữ liệu quá cũ hoặc
-nắm tay hủy ngay. Hết 3 giây mà vẫn giữ tay mở thì xóa lựa chọn.
+**Wave:** đưa lòng bàn tay ra trước webcam, giữ cổ tay tương đối yên và
+**duỗi → co → duỗi → co → duỗi các ngón** trong khoảng 1–3 giây. Ít nhất ba
+ngón trỏ/giữa/áp út/út phải cùng đổi trạng thái. Không cần đưa bàn tay ngang.
+Chương trình đo độ duỗi từ tỷ lệ khoảng cách đầu ngón–cổ tay và khớp PIP–cổ tay,
+chuẩn hóa theo kích thước tay, rồi đếm đủ hai chu kỳ co–duỗi trong 3 giây.
+Tay mở đứng yên, tịnh tiến cả bàn tay hoặc một/hai ngón cử động không tạo Wave.
 
-Khi robot đang chờ, cửa sổ ghi `OPEN HAND - wave left/right` để hướng dẫn chọn
-Wave. **Khi robot đang chạy, Open Palm luôn dừng ngay**, kể cả đang còn bộ đếm
-hoặc tay mở được xác định bằng landmarks khi model tĩnh trả về `UNKNOWN`.
+Khi nhận đủ hai chu kỳ, màn hình hiện `WAVE - GREET SELECTED` và có **3 giây
+đổi sang Thumbs Up**. Giữ ngón cái để duy trì tín hiệu trong lúc robot chào.
+Wave chỉ chọn, chưa phát vận tốc. Topic phát `Wave` một lần; `WAVE_PENDING`
+chỉ duy trì lựa chọn chào trên frame tay mới, không tạo thêm lần chọn và không
+cho phép robot đang chạy tiếp tục bằng nhãn này. Mất tay, nhiều tay hoặc kết quả
+quá cũ xóa lựa chọn. Hết đoạn xác nhận mà vẫn mở tay thì hủy lựa chọn.
 
-Các ngưỡng Wave nằm trong `config/gestures.yaml`: `wave_window_s`,
-`wave_min_travel`, `wave_hand_scale`, `wave_min_reversals`, `wave_confirm_window_s`.
-Đoạn chuyển xác nhận được chặn tối đa 3 giây. Log `gestures.jsonl`
-có thêm điểm chuyển động, ngưỡng và số lần đổi chiều để kiểm tra từng lượt.
+**Open Palm khi RUNNING dừng ngay**, không phụ thuộc bộ đếm Wave. Nắm tay khi
+RUNNING cũng hủy ngay. Khi đang thu Wave hoặc chờ xác nhận, một frame co ngón
+có thể bị model gọi là Closed Fist; chỉ nắm giữ 0,4 giây mới hủy để không nhầm
+với pha co ngón của Wave. Nắm tay khi không thu Wave vẫn là lệnh hủy.
+
+Cấu hình Wave: `wave_window_s`, `wave_min_cycles`, `wave_confirm_window_s`.
+Log có `finger_extension`, `finger_phase`, `wave_cycles`, `ready`, `blocked_reason`.
 
 Có thể đặt `BAI06_OUTPUT_DIR`, `BAI06_ROS_DOMAIN_ID`, `BAI06_MODEL`,
 `BAI06_PYTHON_DEPS` hoặc `BAI06_UNDERLAY` trước lệnh chạy. Dùng
@@ -106,7 +110,8 @@ và tận dụng underlay TurtleBot 4 đã cài từ các bài trước.
 
 ```text
 bai06_turtlebot4/gesture_recognition_node.py  Webcam -> MediaPipe -> nhãn/khung tay
-bai06_turtlebot4/wave_detector.py             Wave động và ưu tiên Open Palm
+bai06_turtlebot4/wave_detector.py             Wave co–duỗi ngón và ưu tiên dừng
+bai06_turtlebot4/simulation_ready_node.py     Controller, undock và trạng thái READY
 bai06_turtlebot4/visualization.py             Vẽ 21 landmark và đường nối
 bai06_turtlebot4/robot_behavior_node.py       Chọn/xác nhận, odom, vận tốc, dừng
 launch/demo.launch.py                       Gazebo, bridge, robot và hai node

@@ -1,142 +1,151 @@
-"""Detect a left-right wave within a bounded window of fresh landmarks."""
-from collections import deque
+"""Recognise a finger wave: extend, curl, extend twice before confirming."""
+from dataclasses import dataclass
 import math
 
 
-def open_hand_motion(landmarks):
-    """Return a motion point only for an extended, open hand.
+@dataclass(frozen=True)
+class FingerPose:
+    extension: tuple
 
-    Distances and joint angles work for either hand, including a tilted wrist.
-    Tracking both palm and fingertips also captures a wrist wave in which the
-    palm centre barely moves. This is geometry, not a model confidence score.
+    @property
+    def open(self):
+        return sum(value >= 0.70 for value in self.extension) >= 3
+
+    @property
+    def curled(self):
+        return sum(value <= 0.40 for value in self.extension) >= 3
+
+
+def finger_pose(landmarks):
+    """Measure fingers relative to wrist/PIP distances, independent of position.
+
+    Three fingers must agree; moving a rigid palm or showing one/two extended
+    fingers does not complete the required two curl-and-extend cycles.
     """
     if len(landmarks) != 21:
         return None
 
     def distance(a, b):
-        return math.hypot(a.x - b.x, a.y - b.y)
+        return math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2
+                         + (getattr(a, 'z', 0) - getattr(b, 'z', 0)) ** 2)
 
-    wrist = landmarks[0]
-    extended = 0
-    for mcp, pip, tip in [(5, 6, 8), (9, 10, 12), (13, 14, 16), (17, 18, 20)]:
-        a, b, c = (landmarks[i] for i in (mcp, pip, tip))
-        ux, uy, vx, vy = a.x - b.x, a.y - b.y, c.x - b.x, c.y - b.y
-        norm = math.hypot(ux, uy) * math.hypot(vx, vy)
-        straight = norm > 1e-8 and (ux * vx + uy * vy) / norm < -0.75
-        if straight and distance(c, wrist) > 1.12 * distance(b, wrist):
-            extended += 1
-    if extended < 3:
+    if distance(landmarks[5], landmarks[17]) < 0.025:
         return None
-    width = distance(landmarks[5], landmarks[17])
-    if width < 0.025:
-        return None
-    palm_x = sum(landmarks[i].x for i in (0, 5, 9, 17)) / 4
-    palm_y = sum(landmarks[i].y for i in (0, 5, 9, 17)) / 4
-    tips_x = sum(landmarks[i].x for i in (8, 12, 16, 20)) / 4
-    tips_y = sum(landmarks[i].y for i in (8, 12, 16, 20)) / 4
-    return ((palm_x + tips_x) / 2, (palm_y + tips_y) / 2, width)
+    values = []
+    for pip, tip in ((6, 8), (10, 12), (14, 16), (18, 20)):
+        base = distance(landmarks[0], landmarks[pip])
+        if base < 1e-5:
+            return None
+        ratio = distance(landmarks[0], landmarks[tip]) / base
+        values.append(max(0.0, min(1.0, (ratio - 0.65) / 0.85)))
+    return FingerPose(tuple(values))
 
 
-class WaveDetector:
-    def __init__(self, window_s=2.4, min_travel=0.025, min_reversals=2,
-                 hand_scale=0.30, gap_s=0.20):
+class FingerWaveDetector:
+    def __init__(self, window_s=3.0, min_cycles=2, hold_s=0.07, gap_s=0.25):
         self.window_s = window_s
-        self.min_travel = min_travel
-        self.min_reversals = min_reversals
-        self.hand_scale = hand_scale
+        self.min_cycles = min_cycles
+        self.hold_s = hold_s
         self.gap_s = gap_s
-        self.samples = deque()
         self.last_emit = -1e9
-        self.reversals = 0
-        self.threshold = min_travel
+        self.reset()
 
     def reset(self):
-        self.samples.clear()
-        self.reversals = 0
+        self.phase = ''
+        self.candidate = ''
+        self.candidate_at = 0.0
+        self.candidate_count = 0
+        self.started_at = None
+        self.last_at = -1e9
+        self.cycles = 0
 
-    def update(self, now, palm_x, palm_y, open_palm, hand_width=None):
-        if not open_palm:
+    @property
+    def collecting(self):
+        return bool(self.phase)
+
+    def update(self, now, pose):
+        if (now - self.last_at > self.gap_s
+                or self.started_at is not None and now - self.started_at > self.window_s):
             self.reset()
+        self.last_at = now
+        level = 'OPEN' if pose.open else 'CURL' if pose.curled else ''
+        if not level:
+            self.candidate = ''
             return False
-        if self.samples and now - self.samples[-1][0] > self.gap_s:
-            self.reset()
-        self.samples.append((now, palm_x, palm_y))
-        while self.samples and now - self.samples[0][0] > self.window_s:
-            self.samples.popleft()
-        # Scale with the hand, rather than demanding a fixed 54-pixel stroke.
-        self.threshold = max(self.min_travel, min(0.07,
-            hand_width * self.hand_scale if hand_width is not None else self.min_travel))
-        self.reversals = 0
-        if len(self.samples) < 4:
+        if level != self.candidate:
+            self.candidate = level
+            self.candidate_at = now
+            self.candidate_count = 0
+        self.candidate_count += 1
+        if self.candidate_count < 2 or now - self.candidate_at < self.hold_s:
             return False
-        _, extreme_x, extreme_y = self.samples[0]
-        direction = reversals = 0
-        for _, x, y in self.samples:
-            # Keep the actual turning point. Resetting the anchor after every
-            # threshold crossing misses a shorter return stroke near a peak.
-            if direction and (x - extreme_x) * direction > 0:
-                extreme_x, extreme_y = x, y
-                continue
-            dx, dy = x - extreme_x, y - extreme_y
-            if abs(dx) < self.threshold or abs(dx) <= abs(dy) * 1.2:
-                continue
-            new_direction = 1 if dx > 0 else -1
-            if direction and new_direction != direction:
-                reversals += 1
-            direction = new_direction
-            extreme_x, extreme_y = x, y
-        self.reversals = reversals
-        if (reversals >= self.min_reversals
-                and now - self.samples[0][0] >= 0.30
-                and now - self.last_emit > 1.2):
-            self.last_emit = now
-            self.reset()
-            return True
+        if not self.phase:
+            if level == 'OPEN':
+                self.phase = 'OPEN'
+            return False
+        if self.phase == 'OPEN' and level == 'CURL':
+            if self.started_at is None:
+                self.started_at = now
+            self.phase = 'CURL'
+        elif self.phase == 'CURL' and level == 'OPEN':
+            self.phase = 'OPEN'
+            self.cycles += 1
+            if self.cycles >= self.min_cycles and now - self.last_emit > 1.0:
+                self.last_emit = now
+                self.reset()
+                return True
         return False
 
 
 class GestureRouter:
-    """Open Palm always passes through while RUNNING.
-
-    After a Wave event, allow a bounded three-second confirmation handoff.
-    Fresh open-hand frames preserve the selection during that interval; brief
-    UNKNOWN frames do not erase it or provide a heartbeat. Missing/stale hands,
-    cancel, another choice or RUNNING always end the handoff.
-    """
+    """Separate finger motion, confirmation, cancellation, and immediate stops."""
     def __init__(self, confirm_window_s=3.0, **wave_options):
-        self.wave = WaveDetector(**wave_options)
-        self.transition_until = 0.0
+        self.wave = FingerWaveDetector(**wave_options)
         self.confirm_window_s = min(max(float(confirm_window_s), 0.5), 3.0)
+        self.transition_until = 0.0
         self.last_signal_at = -1e9
+        self.fist_since = None
 
-    def update(self, now, raw, palm=None, state='IDLE'):
-        signal_lost = raw in {'NO_HAND', 'CAMERA_ERROR', 'MULTIPLE_HANDS', 'STALE_RESULT'}
-        open_candidate = palm is not None and raw in {'Open_Palm', 'UNKNOWN'}
+    def reset(self):
+        self.wave.reset()
+        self.transition_until = 0.0
+        self.fist_since = None
+
+    def update(self, now, raw, pose=None, state='IDLE'):
+        if raw in {'NO_HAND', 'CAMERA_ERROR', 'MULTIPLE_HANDS', 'STALE_RESULT'}:
+            self.reset()
+            return raw
         if state == 'RUNNING':
+            self.reset()
+            return 'Open_Palm' if raw == 'Open_Palm' or pose and pose.open else raw
+        if raw in {'Thumb_Up', 'Pointing_Up', 'Victory'}:
             self.wave.reset()
-            self.transition_until = 0.0
-            return 'Open_Palm' if open_candidate else raw
-        if signal_lost or raw in {'Closed_Fist', 'Pointing_Up', 'Victory'}:
-            self.wave.reset()
-            self.transition_until = 0.0
-            return raw
-        if raw == 'Thumb_Up':
-            self.wave.reset()
+            self.fist_since = None
             self.last_signal_at = now
-            return raw
-        if not open_candidate:
-            # A brief unclassified pose may bridge samples, but never supplies
-            # a sample, an event or a heartbeat. Actual tracking loss clears it.
-            if self.wave.samples and now - self.wave.samples[-1][0] > self.wave.gap_s:
-                self.wave.reset()
-            if now - self.last_signal_at > self.wave.gap_s:
+            if raw != 'Thumb_Up':
                 self.transition_until = 0.0
             return raw
+        if raw == 'Closed_Fist':
+            if self.fist_since is None:
+                self.fist_since = now
+            # Transient curl is part of a wave. Holding a fist cancels after
+            # 0.4 s while stationary; RUNNING always passes cancel immediately.
+            if (not self.wave.collecting and now >= self.transition_until
+                    or now - self.fist_since >= 0.4):
+                self.reset()
+                return 'Closed_Fist'
+        else:
+            self.fist_since = None
+        if pose is None:
+            if now - self.last_signal_at > self.wave.gap_s:
+                self.reset()
+            return 'UNKNOWN'
         self.last_signal_at = now
         if now < self.transition_until:
-            return 'Wave'
-        width = palm[2] if len(palm) > 2 else None
-        if self.wave.update(now, palm[0], palm[1], True, width):
+            return 'WAVE_PENDING'
+        if self.wave.update(now, pose):
             self.transition_until = now + self.confirm_window_s
             return 'Wave'
-        return 'Open_Palm'
+        if raw == 'Open_Palm' or pose.open:
+            return 'Open_Palm'
+        return 'UNKNOWN'

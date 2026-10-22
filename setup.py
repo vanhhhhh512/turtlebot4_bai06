@@ -20,5 +20,6 @@ setup(
     entry_points={'console_scripts': [
         'gesture_recognition_node = bai06_turtlebot4.gesture_recognition_node:main',
         'robot_behavior_node = bai06_turtlebot4.robot_behavior_node:main',
+        'simulation_ready_node = bai06_turtlebot4.simulation_ready_node:main',
     ]},
 )

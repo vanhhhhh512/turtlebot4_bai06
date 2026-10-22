@@ -13,7 +13,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
 
-from .wave_detector import GestureRouter, open_hand_motion
+from .wave_detector import GestureRouter, finger_pose
 from .visualization import draw_hand_landmarks
 
 
@@ -28,8 +28,7 @@ class GestureRecognitionNode(Node):
             ('frame_width', 640), ('frame_height', 480),
             ('show_window', True), ('mirror', True), ('max_result_age_s', 0.25),
             ('output_dir', ''),
-            ('wave_window_s', 2.4), ('wave_min_travel', 0.025),
-            ('wave_hand_scale', 0.30), ('wave_min_reversals', 2),
+            ('wave_window_s', 3.0), ('wave_min_cycles', 2),
             ('wave_confirm_window_s', 3.0),
         ]:
             self.declare_parameter(name, value)
@@ -60,12 +59,12 @@ class GestureRecognitionNode(Node):
         self.behavior = 'IDLE'
         self.behavior_state = 'IDLE'
         self.selected = None
+        self.ready = False
+        self.blocked_reason = 'WAITING_FOR_ROBOT'
         self.router = GestureRouter(
             confirm_window_s=float(self.get_parameter('wave_confirm_window_s').value),
             window_s=float(self.get_parameter('wave_window_s').value),
-            min_travel=float(self.get_parameter('wave_min_travel').value),
-            hand_scale=float(self.get_parameter('wave_hand_scale').value),
-            min_reversals=int(self.get_parameter('wave_min_reversals').value))
+            min_cycles=int(self.get_parameter('wave_min_cycles').value))
         self.last_timestamp_ms = -1
         self.seq = 0
         self.show = bool(self.get_parameter('show_window').value)
@@ -81,9 +80,15 @@ class GestureRecognitionNode(Node):
             data = json.loads(msg.data)
             self.behavior_state = data['state']
             self.selected = data.get('selected')
+            self.ready = data.get('ready', False)
+            self.blocked_reason = data.get('blocked_reason', '')
             self.behavior = f"{self.behavior_state} / {self.selected or '-'}"
             if data.get('phase'):
                 self.behavior += f" / {data['phase']}"
+            if not self.ready:
+                self.behavior = f'PREPARING / {self.blocked_reason}'
+            else:
+                self.behavior = 'READY / ' + self.behavior
             if self.selected == 'FORWARD_BACKWARD_4' and self.behavior_state == 'RUNNING':
                 self.behavior += f" {min(data.get('cycle', 0) + 1, 4)}/4"
         except (KeyError, ValueError):
@@ -115,39 +120,41 @@ class GestureRecognitionNode(Node):
                     raw = category.category_name
         elif len(result.hand_landmarks) > 1:
             raw = 'MULTIPLE_HANDS'
-        palm = None
+        pose = None
         if len(result.hand_landmarks) == 1:
             landmarks = result.hand_landmarks[0]
-            palm = open_hand_motion(landmarks)
-            if palm is None and raw == 'Open_Palm':
-                # A confident model result is still a valid open hand even if
-                # foreshortening prevents the angle check from passing.
-                palm = (sum(landmarks[i].x for i in (0, 5, 9, 17)) / 4,
-                        sum(landmarks[i].y for i in (0, 5, 9, 17)) / 4)
+            pose = finger_pose(landmarks)
         if time.monotonic() - now > self.max_result_age_s:
             raw = 'STALE_RESULT'
-            palm = None
-        label = self.router.update(now, raw, palm, self.behavior_state)
-        self.publish(label, confidence, raw, now, palm)
+            pose = None
+        if self.ready:
+            label = self.router.update(now, raw, pose, self.behavior_state)
+        else:
+            self.router.reset()
+            label = raw if raw in {'NO_HAND', 'MULTIPLE_HANDS', 'STALE_RESULT',
+                                   'Open_Palm', 'Closed_Fist'} else 'NOT_READY'
+        self.publish(label, confidence, raw, now, pose)
         if self.show:
             draw_hand_landmarks(frame, result.hand_landmarks)
             display = cv2.copyMakeBorder(frame, 105, 65, 0, 0,
                                          cv2.BORDER_CONSTANT, value=(20, 20, 20))
             pending = self.router.transition_until > now
-            title = ('WAVE - GREET SELECTED' if pending else
-                     'OPEN HAND - wave left/right' if label == 'Open_Palm'
+            title = ('ROBOT PREPARING' if not self.ready else
+                     'WAVE - GREET SELECTED' if pending else
+                     'OPEN HAND - curl/extend fingers' if label == 'Open_Palm'
                      and self.behavior_state == 'IDLE' else label)
             score = 'motion rule' if pending or label == 'Wave' else f'model {confidence:.2f}'
             cv2.putText(display, f'{title} | {score}', (12, 29),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.75, (70, 255, 100), 2)
             cv2.putText(display, self.behavior, (12, 57),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.48, (240, 240, 240), 1)
-            hint = (f'THUMB UP to confirm | {self.router.transition_until - now:.1f}s'
+            hint = ('WAIT: robot controllers / undock' if not self.ready else
+                    f'THUMB UP to confirm | {self.router.transition_until - now:.1f}s'
                     if pending
                     else 'THUMB UP to confirm' if self.behavior_state == 'SELECTED'
                     else 'Keep one hand visible' if self.behavior_state == 'RUNNING'
-                    else f'Wave open hand L-R-L | turns {self.router.wave.reversals}/2'
-                    if palm is not None
+                    else f'Curl + extend fingers | cycles {self.router.wave.cycles}/2'
+                    if pose is not None
                     else 'Wave / 1 finger / 2 fingers: select, then THUMB UP')
             cv2.putText(display, hint, (12, 85),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.47, (0, 220, 255), 1)
@@ -159,15 +166,17 @@ class GestureRecognitionNode(Node):
             cv2.imshow('Bai 06 - laptop webcam', display)
             cv2.waitKey(1)
 
-    def publish(self, label, confidence, raw, now, palm=None):
+    def publish(self, label, confidence, raw, now, pose=None):
         self.seq += 1
         if not rclpy.ok():
             return
         self.gesture_pub.publish(String(data=label))
         record = dict(seq=self.seq, monotonic=now, wall=time.time(),
                       label=label, raw=raw, confidence=confidence,
-                      wave_point=palm, wave_reversals=self.router.wave.reversals,
-                      wave_threshold=self.router.wave.threshold)
+                      finger_extension=pose.extension if pose else None,
+                      finger_phase=self.router.wave.phase,
+                      wave_cycles=self.router.wave.cycles,
+                      ready=self.ready, blocked_reason=self.blocked_reason)
         self.status_pub.publish(String(data=json.dumps(record)))
         if self.events:
             self.events.write(json.dumps(record) + '\n')

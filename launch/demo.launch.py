@@ -18,12 +18,12 @@ def generate_launch_description():
     model = LaunchConfiguration('model_path')
     output = LaunchConfiguration('output_dir')
     config = os.path.join(share, 'config', 'gestures.yaml')
-    undock = ExecuteProcess(cmd=['ros2', 'action', 'send_goal', '/undock',
-                                  'irobot_create_msgs/action/Undock', '{}'], output='screen')
     nodes = [
         Node(package='bai06_turtlebot4', executable='robot_behavior_node',
              output='screen', parameters=[config, {'output_dir': output,
-                                                  'configure_sim_backup': True}]),
+                                                  'configure_sim_backup': True,
+                                                  'require_sim_ready': True}]),
+        Node(package='bai06_turtlebot4', executable='simulation_ready_node', output='screen'),
         Node(package='bai06_turtlebot4', executable='gesture_recognition_node',
              output='screen', parameters=[config, {
                  'model_path': ParameterValue(model, value_type=str),
@@ -60,6 +60,5 @@ def generate_launch_description():
             launch_arguments={'model': 'standard', 'world': 'gesture_arena',
                               'x': '0.0', 'y': '0.0',
                               'yaw': '0.0', 'rviz': 'false'}.items()),
-        TimerAction(period=24.0, actions=nodes),
-        TimerAction(period=35.0, actions=[undock]),
+        TimerAction(period=5.0, actions=nodes),
     ])
