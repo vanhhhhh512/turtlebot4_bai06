@@ -101,6 +101,12 @@ chỉ duy trì lựa chọn chào trên frame tay mới, không tạo thêm lầ
 cho phép robot đang chạy tiếp tục bằng nhãn này. Mất tay, nhiều tay hoặc kết quả
 quá cũ xóa lựa chọn. Hết đoạn xác nhận mà vẫn mở tay thì hủy lựa chọn.
 
+**Thumb Up:** ngưỡng chung của các class là 0,60. Riêng Thumb Up dưới mức
+này được nhận từ 0,55 và duy trì từ 0,45 khi ngón cái duỗi, các ngón còn lại co.
+Mỗi frame vẫn phải có dự đoán `Thumb_Up` mới từ model; không lấy nhãn cũ để duy
+trì tín hiệu. Mất tay, nhiều tay, kết quả quá cũ hoặc đổi class xóa trạng thái
+này. Node hành vi vẫn cần ít nhất ba mẫu qua 0,2 giây để xác nhận.
+
 **Open Palm khi RUNNING dừng ngay**, không phụ thuộc bộ đếm Wave. Nắm tay khi
 RUNNING cũng hủy ngay. Khi đang thu Wave hoặc chờ xác nhận, một frame co ngón
 có thể bị model gọi là Closed Fist; chỉ nắm giữ 0,4 giây mới hủy để không nhầm
@@ -108,7 +114,7 @@ với pha co ngón của Wave. Nắm tay khi không thu Wave vẫn là lệnh h�
 
 Cấu hình Wave: `wave_window_s`, `wave_min_cycles`, `wave_min_swing`,
 `wave_confirm_window_s`. Log có `finger_extension`, `finger_motion`, `thumb_open`,
-`finger_phase`, `wave_cycles`, `wave_finger_cycles`, `ready`, `blocked_reason`.
+`finger_phase`, `wave_cycles`, `wave_finger_cycles`, `model_label`, `ready`, `blocked_reason`.
 
 ### Thử Wave riêng bằng webcam
 
@@ -135,7 +141,8 @@ và tận dụng underlay TurtleBot 4 đã cài từ các bài trước.
 
 ```text
 bai06_turtlebot4/gesture_recognition_node.py  Webcam -> MediaPipe -> nhãn/khung tay
-bai06_turtlebot4/wave_detector.py             Wave co–duỗi ngón và ưu tiên dừng
+bai06_turtlebot4/wave_detector.py             Wave theo chuyển động ngón và ưu tiên dừng
+bai06_turtlebot4/static_gesture_filter.py     Lọc class tĩnh, ngưỡng nhận/giữ Thumb Up
 bai06_turtlebot4/simulation_ready_node.py     Controller, undock và trạng thái READY
 bai06_turtlebot4/visualization.py             Vẽ 21 landmark và đường nối
 bai06_turtlebot4/robot_behavior_node.py       Chọn/xác nhận, odom, vận tốc, dừng

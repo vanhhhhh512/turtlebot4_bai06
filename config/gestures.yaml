@@ -2,6 +2,8 @@ gesture_recognition_node:
   ros__parameters:
     device: 0
     confidence: 0.60
+    thumb_confidence: 0.55
+    thumb_hold_confidence: 0.45
     frame_width: 640
     frame_height: 480
     frame_rate: 30.0

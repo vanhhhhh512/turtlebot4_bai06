@@ -132,7 +132,8 @@ Closed Fist & Nắm kín bàn tay. & Hủy hành vi, trở về trạng thái ch
 \end{minipage}\hfill
 \begin{minipage}[t]{.67\linewidth}\vspace{0pt}
 \textbf{Năm cử chỉ tĩnh.} MediaPipe trả về nhãn và confidence. Chương trình dùng
-ngưỡng 0,60; tên class của ngón cái trong model là \code{Thumb_Up}.
+ngưỡng chung 0,60. Thumb Up nhận từ 0,55, duy trì từ 0,45 khi ngón cái duỗi và
+các ngón còn lại co; mỗi frame vẫn cần model dự đoán \code{Thumb_Up} mới.
 Confidence là điểm do model trả về, không phải độ chính xác của toàn hệ thống.
 
 \textbf{Cử chỉ Wave.} Xòe năm ngón rồi vẫy nhẹ ít nhất ba ngón hai lần trong
@@ -206,7 +207,7 @@ Hủy bằng nắm tay & Closed Fist đưa robot về IDLE, lệnh vận tốc v
 Mất tín hiệu, nhiều tay & Ghi nhận dừng với GESTURE\_TIMEOUT và MULTIPLE\_HANDS.\\
 Kiểm tra node trong Gazebo & Hoàn thành chào ba pha; tiến--lùi đủ 8 chặng, mỗi chặng 0,401--0,412 m; đi tròn 6,304 rad, lệch điểm cuối 0,012 m. Đầu vào landmarks/nhãn giả, không thay thế demo webcam.\\
 Dừng trong Gazebo & Open Palm đưa lệnh về 0 sau 0,015--0,018 s ở ba hành vi. Nắm tay, mất tay và hết tín hiệu đều dừng; giữ Thumb Up sau khi xong không chạy lại.\\
-Kiểm tra logic & 35/35 trường hợp kiểm tra qua; gồm Wave lắc/co--duỗi ngón lệch nhịp, lọc nhiễu, xác nhận, chống lặp và dừng.\\\bottomrule
+Kiểm tra logic & 38/38 trường hợp kiểm tra qua; gồm Wave lệch nhịp, Thumb Up dao động điểm, xác nhận, chống lặp và dừng.\\\bottomrule
 \end{tabular}
 \caption{Kết quả có trong dữ liệu chạy thử và kiểm tra logic.}
 \end{table}

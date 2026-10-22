@@ -14,10 +14,8 @@ from rclpy.node import Node
 from std_msgs.msg import String
 
 from .wave_detector import GestureRouter, finger_pose
+from .static_gesture_filter import StaticGestureFilter
 from .visualization import draw_hand_landmarks
-
-
-VALID = {'Pointing_Up', 'Victory', 'Thumb_Up', 'Open_Palm', 'Closed_Fist'}
 
 
 class GestureRecognitionNode(Node):
@@ -25,6 +23,7 @@ class GestureRecognitionNode(Node):
         super().__init__('gesture_recognition_node')
         for name, value in [
             ('device', 0), ('model_path', ''), ('confidence', 0.60),
+            ('thumb_confidence', 0.55), ('thumb_hold_confidence', 0.45),
             ('frame_width', 640), ('frame_height', 480), ('frame_rate', 30.0),
             ('show_window', True), ('mirror', True), ('max_result_age_s', 0.25),
             ('output_dir', ''),
@@ -75,6 +74,10 @@ class GestureRecognitionNode(Node):
         self.seq = 0
         self.show = bool(self.get_parameter('show_window').value)
         self.threshold = float(self.get_parameter('confidence').value)
+        self.static_filter = StaticGestureFilter(
+            confidence=self.threshold,
+            thumb_confidence=float(self.get_parameter('thumb_confidence').value),
+            thumb_hold_confidence=float(self.get_parameter('thumb_hold_confidence').value))
         self.mirror = bool(self.get_parameter('mirror').value)
         self.max_result_age_s = float(self.get_parameter('max_result_age_s').value)
         if self.show:
@@ -107,6 +110,7 @@ class GestureRecognitionNode(Node):
         ok, frame = self.cap.read()
         now = time.monotonic()
         if not ok:
+            self.static_filter.reset()
             self.publish('NO_HAND', 0.0, 'CAMERA_ERROR', now)
             self.router.update(now, 'NO_HAND')
             time.sleep(0.05)
@@ -120,26 +124,30 @@ class GestureRecognitionNode(Node):
             mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb), timestamp_ms)
         raw = 'NO_HAND'
         confidence = 0.0
+        model_label = None
         if len(result.hand_landmarks) == 1:
             raw = 'UNKNOWN'
             if result.gestures and result.gestures[0]:
                 category = result.gestures[0][0]
                 confidence = float(category.score)
-                if category.category_name in VALID and confidence >= self.threshold:
-                    raw = category.category_name
+                model_label = category.category_name
         elif len(result.hand_landmarks) > 1:
             raw = 'MULTIPLE_HANDS'
         pose = None
         if len(result.hand_landmarks) == 1:
             landmarks = result.hand_landmarks[0]
             pose = finger_pose(landmarks, y_scale=frame.shape[0]/frame.shape[1])
+            raw = self.static_filter.update(model_label, confidence, pose)
+        else:
+            self.static_filter.reset()
         if time.monotonic() - now > self.max_result_age_s:
             raw = 'STALE_RESULT'
             pose = None
+            self.static_filter.reset()
         label = self.router.update(now, raw, pose, self.behavior_state)
         if label == 'Wave':
             self.wave_count += 1
-        self.publish(label, confidence, raw, now, pose)
+        self.publish(label, confidence, raw, now, pose, model_label=model_label)
         if self.show:
             draw_hand_landmarks(frame, result.hand_landmarks)
             display = cv2.copyMakeBorder(frame, 105, 65, 0, 0,
@@ -175,14 +183,14 @@ class GestureRecognitionNode(Node):
             cv2.imshow('Bai 06 - laptop webcam', display)
             cv2.waitKey(1)
 
-    def publish(self, label, confidence, raw, now, pose=None):
+    def publish(self, label, confidence, raw, now, pose=None, model_label=None):
         self.seq += 1
         if not rclpy.ok():
             return
         if self.gesture_pub is not None:
             self.gesture_pub.publish(String(data=label))
         record = dict(seq=self.seq, monotonic=now, wall=time.time(),
-                      label=label, raw=raw, confidence=confidence,
+                      label=label, raw=raw, confidence=confidence, model_label=model_label,
                       finger_extension=pose.extension if pose else None,
                       thumb_open=pose.thumb_open if pose else None,
                       finger_motion=pose.motion if pose else None,
