@@ -1,4 +1,4 @@
-"""Recognise a finger wave: extend, curl, extend twice before confirming."""
+"""Recognise an open-hand finger flutter before gesture confirmation."""
 from collections import deque
 from dataclasses import dataclass
 from statistics import median
@@ -9,6 +9,7 @@ import math
 class FingerPose:
     extension: tuple
     thumb_open: bool = True
+    motion: tuple = ()
 
     @property
     def open(self):
@@ -19,7 +20,7 @@ class FingerPose:
         return sum(value <= 0.40 for value in self.extension) >= 3
 
 
-def finger_pose(landmarks):
+def finger_pose(landmarks, y_scale=1.0):
     """Measure fingers relative to wrist/PIP distances, independent of position.
 
     Three fingers must agree; moving a rigid palm or showing one/two extended
@@ -47,16 +48,81 @@ def finger_pose(landmarks):
     norm = math.sqrt(sum(x*x for x in u)*sum(x*x for x in v))
     thumb_open = (norm > 1e-8 and sum(x*y for x,y in zip(u,v))/norm < -0.55
                   and distance(c, landmarks[17]) > 1.05*distance(b, landmarks[17]))
-    return FingerPose(tuple(values), thumb_open)
+    # Express each tip relative to its MCP in a palm-attached 3D frame.
+    # This retains side/depth wiggles while a straight finger's distance ratio
+    # is saturated. Translation, rotation and uniform scale cancel out.
+    xyz = [(p.x, p.y*y_scale, getattr(p, 'z', 0)) for p in landmarks]
+    def sub(a, b):
+        return tuple(x-y for x,y in zip(a,b))
+    def dot(a, b):
+        return sum(x*y for x,y in zip(a,b))
+    def length(a):
+        return math.sqrt(dot(a,a))
+    forward = sub(xyz[9], xyz[0])
+    size = length(forward)
+    if size < 1e-5:
+        return None
+    forward = tuple(v/size for v in forward)
+    side = sub(xyz[5], xyz[17])
+    projection = dot(side, forward)
+    side = tuple(v-projection*y for v,y in zip(side,forward))
+    width = length(side)
+    if width < 1e-5:
+        return None
+    side = tuple(v/width for v in side)
+    normal = (side[1]*forward[2]-side[2]*forward[1],
+              side[2]*forward[0]-side[0]*forward[2],
+              side[0]*forward[1]-side[1]*forward[0])
+    motion = []
+    for base in (5,9,13,17):
+        bone_length = sum(length(sub(xyz[i+1],xyz[i])) for i in range(base,base+3))
+        if bone_length < 1e-5:
+            return None
+        tip = sub(xyz[base+3],xyz[base])
+        motion.append(tuple(dot(tip,axis)/bone_length for axis in (side,forward,normal)))
+    return FingerPose(tuple(values), thumb_open, tuple(motion))
+
+
+class _FingerOscillation:
+    """Count out-and-back strokes along this finger's own movement axis."""
+    def __init__(self, anchor, swing):
+        self.anchor = anchor
+        self.swing = swing
+        self.direction = None
+        self.extreme = 0.
+        self.outward = False
+        self.cycles = 0
+
+    def update(self, vector):
+        delta = tuple(v-a for v,a in zip(vector,self.anchor))
+        if self.direction is None:
+            distance = math.sqrt(sum(v*v for v in delta))
+            if distance >= self.swing:
+                self.direction = tuple(v/distance for v in delta)
+                self.extreme = distance
+                self.outward = True
+            return
+        position = sum(v*d for v,d in zip(delta,self.direction))
+        if self.outward:
+            self.extreme = max(self.extreme,position)
+            if self.extreme-position >= .75*self.swing:
+                self.cycles += 1
+                self.outward = False
+                self.extreme = position
+        else:
+            self.extreme = min(self.extreme,position)
+            if position-self.extreme >= self.swing:
+                self.outward = True
+                self.extreme = position
 
 
 class FingerWaveDetector:
-    """Arm with five open fingers, then measure relative finger flexion.
+    """Arm with an open hand, then detect independent finger oscillations.
 
-    A three-sample median rejects single-frame spikes. The fingers need not
-    close into a fist: three must bend by min_swing then reopen, twice.
+    Palm-local tip vectors capture lateral wiggles and flexion. A median of
+    three fresh frames rejects spikes; three fingers must each repeat twice.
     """
-    def __init__(self, window_s=4.0, min_cycles=2, min_swing=0.22, gap_s=0.25):
+    def __init__(self, window_s=4.0, min_cycles=2, min_swing=0.18, gap_s=0.25):
         self.window_s = window_s
         self.min_cycles = min_cycles
         self.min_swing = min_swing
@@ -70,10 +136,10 @@ class FingerWaveDetector:
         self.last_at = -1e9
         self.cycles = 0
         self.samples = deque(maxlen=3)
-        self.baseline = None
-        self.trough = None
-        self.participants = ()
+        self.fingers = []
+        self.finger_cycles = [0]*4
         self.arm_count = 0
+        self.vector_mode = None
 
     @property
     def collecting(self):
@@ -81,47 +147,40 @@ class FingerWaveDetector:
 
     @property
     def hint(self):
-        if not self.phase:
-            return 'Open 5 fingers first'
-        return 'Extend fingers again' if self.phase == 'CURL' else 'Wiggle fingers gently'
+        return 'Wiggle fingers gently' if self.phase else 'Open 5 fingers first'
 
     def update(self, now, pose, open_hint=False):
-        if (now - self.last_at > self.gap_s
-                or self.started_at is not None and now - self.started_at > self.window_s):
+        vector_mode = bool(pose.motion)
+        if (now-self.last_at > self.gap_s
+                or self.started_at is not None and now-self.started_at > self.window_s
+                or self.vector_mode is not None and vector_mode != self.vector_mode):
             self.reset()
+        self.vector_mode = vector_mode
         self.last_at = now
-        self.samples.append(pose.extension)
-        smooth = tuple(median(v[i] for v in self.samples) for i in range(4))
-        if self.baseline is None:
-            ready = (pose.thumb_open or open_hint) and sum(v >= .55 for v in smooth) >= 3
+        vectors = pose.motion if vector_mode else tuple((v,) for v in pose.extension)
+        self.samples.append(vectors)
+        smooth = tuple(tuple(median(sample[i][j] for sample in self.samples)
+                             for j in range(len(vectors[i]))) for i in range(4))
+        if not self.fingers:
+            ready = (pose.thumb_open or open_hint) and sum(v >= .55 for v in pose.extension) >= 3
             self.arm_count = self.arm_count+1 if ready else 0
             if self.arm_count >= 2:
-                self.baseline = smooth
+                swing = self.min_swing*.75 if vector_mode else self.min_swing
+                self.fingers = [_FingerOscillation(v,swing) for v in smooth]
                 self.phase = 'OPEN'
             return False
-        if self.phase == 'OPEN':
-            if self.cycles == 0:
-                self.baseline = tuple(max(a,b) for a,b in zip(self.baseline,smooth))
-            bent = tuple(i for i in range(4) if self.baseline[i]-smooth[i] >= self.min_swing)
-            if len(bent) >= 3:
-                if self.started_at is None:
-                    self.started_at = now
-                self.phase = 'CURL'
-                self.trough = smooth
-                self.participants = bent
-        else:
-            self.trough = tuple(min(a,b) for a,b in zip(self.trough,smooth))
-            reopened = sum(smooth[i]-self.trough[i] >= .16
-                           and smooth[i] >= self.baseline[i]-.18 for i in self.participants)
-            if reopened >= 3:
-                self.cycles += 1
-                self.phase = 'OPEN'
-                self.baseline = tuple(max(v,b-.12) for v,b in zip(smooth,self.baseline))
-                if (self.cycles >= self.min_cycles and now-self.started_at >= .35
-                        and now-self.last_emit > 1.0):
-                    self.last_emit = now
-                    self.reset()
-                    return True
+        for finger,vector in zip(self.fingers,smooth):
+            finger.update(vector)
+        if self.started_at is None and any(f.direction is not None for f in self.fingers):
+            self.started_at = now
+        self.finger_cycles = [f.cycles for f in self.fingers]
+        self.cycles = sorted(self.finger_cycles,reverse=True)[2]
+        self.phase = 'CURL' if sum(f.outward for f in self.fingers) >= 2 else 'OPEN'
+        if (self.cycles >= self.min_cycles and self.started_at is not None
+                and now-self.started_at >= .35 and now-self.last_emit > 1.0):
+            self.last_emit = now
+            self.reset()
+            return True
         return False
 
 

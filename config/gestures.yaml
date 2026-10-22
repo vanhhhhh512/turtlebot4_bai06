@@ -4,12 +4,13 @@ gesture_recognition_node:
     confidence: 0.60
     frame_width: 640
     frame_height: 480
+    frame_rate: 30.0
     show_window: true
     mirror: true
     max_result_age_s: 0.25
     wave_window_s: 4.0
     wave_min_cycles: 2
-    wave_min_swing: 0.22
+    wave_min_swing: 0.18
     wave_confirm_window_s: 3.0
 robot_behavior_node:
   ros__parameters:

@@ -85,10 +85,12 @@ Không có bước xin quyền lùi trong lúc làm cử chỉ; cả ba hành vi
 luồng chọn → Thumbs Up → thực hiện. Camera nhận diện liên tục trong lúc chuẩn bị.
 
 **Wave:** xòe **5 ngón** hướng về webcam, rồi **vẫy/co–duỗi nhẹ các ngón
-hai lần trong tối đa 4 giây**. Ít nhất ba ngón trỏ/giữa/áp út/út cùng cử động;
+hai lần trong tối đa 4 giây**. Ít nhất ba ngón trỏ/giữa/áp út/út cử động;
 không cần nắm kín tay hoặc đưa cả bàn tay sang trái–phải.
-Chương trình đo độ duỗi tương đối so với lúc mở tay, lọc trung vị ba mẫu rồi
-đếm hai lần cong–duỗi. Nhãn tĩnh thoáng qua lúc cong ngón không xóa lịch sử Wave.
+Chương trình đo vị trí đầu ngón trong hệ tọa độ gắn với lòng bàn tay, lọc trung
+vị ba mẫu và đếm hai nhịp cho từng ngón riêng. Có thể lắc ngón sang bên hoặc
+co–duỗi; các ngón không cần cùng nhịp hay trở lại mức duỗi ban đầu. Chuyển động
+cả bàn tay được loại bằng hệ tọa độ này. Nhãn tĩnh thoáng qua không xóa lịch sử Wave.
 Tay xòe giữ yên là Open Palm; dịch cả bàn tay hoặc chỉ một/hai ngón động không
 đủ tạo Wave.
 
@@ -105,8 +107,8 @@ có thể bị model gọi là Closed Fist; chỉ nắm giữ 0,4 giây mới h�
 với pha co ngón của Wave. Nắm tay khi không thu Wave vẫn là lệnh hủy.
 
 Cấu hình Wave: `wave_window_s`, `wave_min_cycles`, `wave_min_swing`,
-`wave_confirm_window_s`. Log có `finger_extension`, `thumb_open`, `finger_phase`,
-`wave_cycles`, `ready`, `blocked_reason`.
+`wave_confirm_window_s`. Log có `finger_extension`, `finger_motion`, `thumb_open`,
+`finger_phase`, `wave_cycles`, `wave_finger_cycles`, `ready`, `blocked_reason`.
 
 ### Thử Wave riêng bằng webcam
 

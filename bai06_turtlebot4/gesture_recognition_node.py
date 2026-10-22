@@ -25,10 +25,10 @@ class GestureRecognitionNode(Node):
         super().__init__('gesture_recognition_node')
         for name, value in [
             ('device', 0), ('model_path', ''), ('confidence', 0.60),
-            ('frame_width', 640), ('frame_height', 480),
+            ('frame_width', 640), ('frame_height', 480), ('frame_rate', 30.0),
             ('show_window', True), ('mirror', True), ('max_result_age_s', 0.25),
             ('output_dir', ''),
-            ('wave_window_s', 4.0), ('wave_min_cycles', 2), ('wave_min_swing', 0.22),
+            ('wave_window_s', 4.0), ('wave_min_cycles', 2), ('wave_min_swing', 0.18),
             ('wave_confirm_window_s', 3.0),
             ('camera_test_only', False),
         ]:
@@ -45,6 +45,7 @@ class GestureRecognitionNode(Node):
         self.cap = cv2.VideoCapture(int(self.get_parameter('device').value), cv2.CAP_V4L2)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, int(self.get_parameter('frame_width').value))
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, int(self.get_parameter('frame_height').value))
+        self.cap.set(cv2.CAP_PROP_FPS, float(self.get_parameter('frame_rate').value))
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         if not self.cap.isOpened():
             raise RuntimeError('Cannot open laptop webcam')
@@ -78,7 +79,8 @@ class GestureRecognitionNode(Node):
         self.max_result_age_s = float(self.get_parameter('max_result_age_s').value)
         if self.show:
             cv2.namedWindow('Bai 06 - laptop webcam', cv2.WINDOW_NORMAL)
-        self.get_logger().info('Webcam and MediaPipe model ready')
+        self.get_logger().info(
+            f'Webcam and MediaPipe model ready; driver FPS={self.cap.get(cv2.CAP_PROP_FPS):.1f}')
 
     def on_behavior(self, msg):
         try:
@@ -130,7 +132,7 @@ class GestureRecognitionNode(Node):
         pose = None
         if len(result.hand_landmarks) == 1:
             landmarks = result.hand_landmarks[0]
-            pose = finger_pose(landmarks)
+            pose = finger_pose(landmarks, y_scale=frame.shape[0]/frame.shape[1])
         if time.monotonic() - now > self.max_result_age_s:
             raw = 'STALE_RESULT'
             pose = None
@@ -183,6 +185,8 @@ class GestureRecognitionNode(Node):
                       label=label, raw=raw, confidence=confidence,
                       finger_extension=pose.extension if pose else None,
                       thumb_open=pose.thumb_open if pose else None,
+                      finger_motion=pose.motion if pose else None,
+                      wave_finger_cycles=self.router.wave.finger_cycles,
                       finger_phase=self.router.wave.phase,
                       wave_cycles=self.router.wave.cycles,
                       ready=self.ready, blocked_reason=self.blocked_reason)

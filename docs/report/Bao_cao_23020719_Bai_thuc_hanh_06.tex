@@ -135,10 +135,11 @@ Closed Fist & Nắm kín bàn tay. & Hủy hành vi, trở về trạng thái ch
 ngưỡng 0,60; tên class của ngón cái trong model là \code{Thumb_Up}.
 Confidence là điểm do model trả về, không phải độ chính xác của toàn hệ thống.
 
-\textbf{Cử chỉ Wave.} Xòe năm ngón rồi co--duỗi nhẹ ít nhất ba ngón hai
-lần trong 4 s. Độ cong được đo tương đối so với tay mở và lọc trung vị ba mẫu;
-không cần nắm kín tay. Tay mở đứng yên hoặc chỉ dịch cả bàn tay không tạo Wave.
-Model tĩnh không có class Wave; đây là luật theo landmarks.
+\textbf{Cử chỉ Wave.} Xòe năm ngón rồi vẫy nhẹ ít nhất ba ngón hai lần trong
+4 s. Chương trình đo đầu ngón trong hệ tọa độ gắn với lòng bàn tay, lọc trung vị
+ba mẫu và đếm từng ngón riêng. Các ngón có thể lắc hoặc co--duỗi lệch nhịp.
+Tay mở đứng yên vẫn là Open Palm. Wave là luật theo landmarks, không phải class
+có sẵn của model.
 \end{minipage}
 
 \textbf{Phân biệt Wave và Open Palm.}
@@ -205,7 +206,7 @@ Hủy bằng nắm tay & Closed Fist đưa robot về IDLE, lệnh vận tốc v
 Mất tín hiệu, nhiều tay & Ghi nhận dừng với GESTURE\_TIMEOUT và MULTIPLE\_HANDS.\\
 Kiểm tra node trong Gazebo & Hoàn thành chào ba pha; tiến--lùi đủ 8 chặng, mỗi chặng 0,401--0,412 m; đi tròn 6,304 rad, lệch điểm cuối 0,012 m. Đầu vào landmarks/nhãn giả, không thay thế demo webcam.\\
 Dừng trong Gazebo & Open Palm đưa lệnh về 0 sau 0,015--0,018 s ở ba hành vi. Nắm tay, mất tay và hết tín hiệu đều dừng; giữ Thumb Up sau khi xong không chạy lại.\\
-Kiểm tra logic & 30/30 trường hợp kiểm tra qua; gồm Wave vẫy nhẹ ngón, lọc nhiễu, xác nhận, chống lặp, 8 chặng và dừng.\\\bottomrule
+Kiểm tra logic & 35/35 trường hợp kiểm tra qua; gồm Wave lắc/co--duỗi ngón lệch nhịp, lọc nhiễu, xác nhận, chống lặp và dừng.\\\bottomrule
 \end{tabular}
 \caption{Kết quả có trong dữ liệu chạy thử và kiểm tra logic.}
 \end{table}
