@@ -7,6 +7,10 @@ gesture_recognition_node:
     show_window: true
     mirror: true
     max_result_age_s: 0.25
+    wave_window_s: 2.4
+    wave_min_travel: 0.025
+    wave_hand_scale: 0.30
+    wave_min_reversals: 2
 robot_behavior_node:
   ros__parameters:
     watchdog_s: 0.50

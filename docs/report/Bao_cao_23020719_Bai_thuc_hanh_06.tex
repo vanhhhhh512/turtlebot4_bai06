@@ -130,11 +130,11 @@ Closed Fist & Nắm kín bàn tay. & Hủy hành vi, trở về trạng thái ch
 ngưỡng 0,60; tên class của ngón cái trong model là \code{Thumb_Up}.
 Confidence là điểm do model trả về, không phải độ chính xác của toàn hệ thống.
 
-\textbf{Cử chỉ Wave.} Model mặc định không có class Wave. Chương trình tính tâm
-bàn tay từ các điểm 0, 5, 9, 17 và theo dõi tọa độ ngang qua nhiều frame.
-Wave cần ít nhất hai lần đổi chiều trong 1,6 s, biên độ mỗi lần tối thiểu 0,085
-chiều rộng ảnh và chuyển động ngang lớn hơn chuyển động dọc. Tay mở đứng yên
-được nhận là Open Palm.
+\textbf{Cử chỉ Wave.} Model không có class Wave. Chương trình theo dõi cả tâm
+bàn tay và đầu ngón để nhận vẫy ngang hoặc vẫy bằng cổ tay. Cần hai lần đổi chiều
+trong 2,4 s; ngưỡng mỗi chặng bằng 30\% bề rộng tay, chặn trong 2,5--7\% chiều
+rộng ảnh. Landmarks tay mở vẫn được dùng khi model trả UNKNOWN. Tay đứng yên
+không tạo Wave; mất tay hoặc kết quả quá cũ xóa chuỗi.
 \end{minipage}
 
 \textbf{Phân biệt Wave và Open Palm.}

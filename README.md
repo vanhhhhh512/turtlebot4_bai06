@@ -67,11 +67,27 @@ Mọi chuyển động, kể cả chào, đều cần chọn rồi xác nhận. 
 cử chỉ hợp lệ trong ảnh để duy trì tín hiệu. Rút tay, camera lỗi, nhiều tay hoặc
 mất kết quả hợp lệ quá 0,5 s làm robot dừng; muốn chạy tiếp phải chọn và xác nhận lại.
 
-Cử chỉ chọn/xác nhận cần ít nhất 3 kết quả cùng nhãn qua 0,2 s. Giữ nguyên cử chỉ
-chỉ tạo một sự kiện; giữ Thumbs Up không kích hoạt lại sau khi hành vi hoàn thành.
-Wave được nhận từ hai lần đổi chiều ngang trong 1,6 s. Sau khi hiện lựa chọn chào,
-đổi sang Thumbs Up trong đoạn chuyển tối đa 0,6 s; giữ tay mở sẽ xóa lựa chọn.
-Khi đang chạy, Open Palm luôn được ưu tiên dừng ngay từ kết quả hợp lệ mới.
+Pointing Up, Victory và Thumbs Up cần ít nhất 3 kết quả cùng nhãn qua 0,2 s.
+Giữ nguyên cử chỉ chỉ tạo một sự kiện; giữ Thumbs Up không kích hoạt lại sau khi
+hành vi hoàn thành.
+
+**Wave:** hướng bàn tay mở về camera, đưa qua lại trái–phải–trái trong khoảng
+1–2 giây. Bộ nhận diện dùng cả tâm bàn tay và đầu ngón nên nhận được cả kiểu vẫy
+bằng cổ tay. Cần hai lần đổi chiều trong 2,4 s; ngưỡng mỗi chặng bằng 30% bề rộng
+bàn tay, tối thiểu 2,5% và tối đa 7% chiều rộng ảnh. Nhãn tĩnh `UNKNOWN` không
+xóa chuỗi nếu landmarks vẫn cho thấy ít nhất ba ngón duỗi. Một khoảng không
+phân loại được chỉ được nối tối đa 0,2 s; mất tay, nhiều tay hoặc kết quả quá cũ
+xóa chuỗi ngay. Tay đứng yên và chuyển động dọc không được tính là Wave.
+
+Cửa sổ hiện `turns 0/2`, `1/2` khi đang thu chuyển động. Khi hiện `Wave` hoặc
+`SELECTED / GREET`, đổi ngay sang Thumbs Up để xác nhận. Nhãn Wave chỉ được giữ
+trong đoạn chuyển tối đa 0,6 s trên các frame tay mở mới; giữ tay mở quá đoạn này
+sẽ xóa lựa chọn. Khi robot đang chạy, Open Palm luôn dừng ngay, kể cả tay mở
+được xác định bằng landmarks khi model tĩnh trả về `UNKNOWN`.
+
+Các ngưỡng Wave nằm trong `config/gestures.yaml`: `wave_window_s`,
+`wave_min_travel`, `wave_hand_scale`, `wave_min_reversals`. Log `gestures.jsonl`
+có thêm điểm chuyển động, ngưỡng và số lần đổi chiều để kiểm tra từng lượt.
 
 Có thể đặt `BAI06_OUTPUT_DIR`, `BAI06_ROS_DOMAIN_ID`, `BAI06_MODEL`,
 `BAI06_PYTHON_DEPS` hoặc `BAI06_UNDERLAY` trước lệnh chạy. Dùng

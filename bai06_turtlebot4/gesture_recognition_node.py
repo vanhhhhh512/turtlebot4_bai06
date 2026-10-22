@@ -13,7 +13,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
 
-from .wave_detector import GestureRouter
+from .wave_detector import GestureRouter, open_hand_motion
 from .visualization import draw_hand_landmarks
 
 
@@ -28,6 +28,8 @@ class GestureRecognitionNode(Node):
             ('frame_width', 640), ('frame_height', 480),
             ('show_window', True), ('mirror', True), ('max_result_age_s', 0.25),
             ('output_dir', ''),
+            ('wave_window_s', 2.4), ('wave_min_travel', 0.025),
+            ('wave_hand_scale', 0.30), ('wave_min_reversals', 2),
         ]:
             self.declare_parameter(name, value)
         self.output_dir = self.get_parameter('output_dir').value
@@ -57,7 +59,11 @@ class GestureRecognitionNode(Node):
         self.behavior = 'IDLE'
         self.behavior_state = 'IDLE'
         self.selected = None
-        self.router = GestureRouter()
+        self.router = GestureRouter(
+            window_s=float(self.get_parameter('wave_window_s').value),
+            min_travel=float(self.get_parameter('wave_min_travel').value),
+            hand_scale=float(self.get_parameter('wave_hand_scale').value),
+            min_reversals=int(self.get_parameter('wave_min_reversals').value))
         self.last_timestamp_ms = -1
         self.seq = 0
         self.show = bool(self.get_parameter('show_window').value)
@@ -108,16 +114,19 @@ class GestureRecognitionNode(Node):
         elif len(result.hand_landmarks) > 1:
             raw = 'MULTIPLE_HANDS'
         palm = None
-        if raw == 'Open_Palm':
+        if len(result.hand_landmarks) == 1:
             landmarks = result.hand_landmarks[0]
-            palm_x = (landmarks[0].x + landmarks[5].x + landmarks[9].x + landmarks[17].x) / 4
-            palm_y = (landmarks[0].y + landmarks[5].y + landmarks[9].y + landmarks[17].y) / 4
-            palm = (palm_x, palm_y)
+            palm = open_hand_motion(landmarks)
+            if palm is None and raw == 'Open_Palm':
+                # A confident model result is still a valid open hand even if
+                # foreshortening prevents the angle check from passing.
+                palm = (sum(landmarks[i].x for i in (0, 5, 9, 17)) / 4,
+                        sum(landmarks[i].y for i in (0, 5, 9, 17)) / 4)
         if time.monotonic() - now > self.max_result_age_s:
             raw = 'STALE_RESULT'
             palm = None
         label = self.router.update(now, raw, palm, self.behavior_state)
-        self.publish(label, confidence, raw, now)
+        self.publish(label, confidence, raw, now, palm)
         if self.show:
             draw_hand_landmarks(frame, result.hand_landmarks)
             display = cv2.copyMakeBorder(frame, 105, 65, 0, 0,
@@ -127,8 +136,11 @@ class GestureRecognitionNode(Node):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.75, (70, 255, 100), 2)
             cv2.putText(display, self.behavior, (12, 57),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.48, (240, 240, 240), 1)
-            hint = ('THUMB UP to confirm' if self.behavior_state == 'SELECTED'
+            hint = ('WAVE selected: THUMB UP now' if label == 'Wave'
+                    else 'THUMB UP to confirm' if self.behavior_state == 'SELECTED'
                     else 'Keep one hand visible' if self.behavior_state == 'RUNNING'
+                    else f'Wave open hand L-R-L | turns {self.router.wave.reversals}/2'
+                    if palm is not None
                     else 'Wave / 1 finger / 2 fingers: select, then THUMB UP')
             cv2.putText(display, hint, (12, 85),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.47, (0, 220, 255), 1)
@@ -140,13 +152,15 @@ class GestureRecognitionNode(Node):
             cv2.imshow('Bai 06 - laptop webcam', display)
             cv2.waitKey(1)
 
-    def publish(self, label, confidence, raw, now):
+    def publish(self, label, confidence, raw, now, palm=None):
         self.seq += 1
         if not rclpy.ok():
             return
         self.gesture_pub.publish(String(data=label))
         record = dict(seq=self.seq, monotonic=now, wall=time.time(),
-                      label=label, raw=raw, confidence=confidence)
+                      label=label, raw=raw, confidence=confidence,
+                      wave_point=palm, wave_reversals=self.router.wave.reversals,
+                      wave_threshold=self.router.wave.threshold)
         self.status_pub.publish(String(data=json.dumps(record)))
         if self.events:
             self.events.write(json.dumps(record) + '\n')
