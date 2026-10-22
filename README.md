@@ -56,7 +56,7 @@ hoặc bàn phím phát vận tốc trong lúc demo. Nhấn Ctrl+C tại termina
 
 | Cử chỉ | Hành vi |
 |---|---|
-| Wave: đưa tay ra trước camera, co–duỗi các ngón hai lần | Chọn chào trái–phải rồi về hướng gần ban đầu |
+| Wave: xòe 5 ngón rồi vẫy nhẹ các ngón hai lần | Chọn chào trái–phải rồi về hướng gần ban đầu |
 | Pointing Up: giơ ngón trỏ | Chọn tiến–lùi 4 chu kỳ, mỗi chặng 0,40 m |
 | Victory: giơ hai ngón chữ V | Chọn đi tròn một vòng, bán kính 0,60 m |
 | Thumbs Up: giơ ngón cái | Xác nhận và thực hiện lựa chọn đúng một lần |
@@ -84,12 +84,13 @@ gọi `/undock`; controller vẫn chặn chuyển động khi robot chưa sẵn 
 Không có bước xin quyền lùi trong lúc làm cử chỉ; cả ba hành vi dùng chung
 luồng chọn → Thumbs Up → thực hiện. Camera nhận diện liên tục trong lúc chuẩn bị.
 
-**Wave:** đưa lòng bàn tay ra trước webcam, giữ cổ tay tương đối yên và
-**duỗi → co → duỗi → co → duỗi các ngón** trong khoảng 1–3 giây. Ít nhất ba
-ngón trỏ/giữa/áp út/út phải cùng đổi trạng thái. Không cần đưa bàn tay ngang.
-Chương trình đo độ duỗi từ tỷ lệ khoảng cách đầu ngón–cổ tay và khớp PIP–cổ tay,
-chuẩn hóa theo kích thước tay, rồi đếm đủ hai chu kỳ co–duỗi trong 3 giây.
-Tay mở đứng yên, tịnh tiến cả bàn tay hoặc một/hai ngón cử động không tạo Wave.
+**Wave:** xòe **5 ngón** hướng về webcam, rồi **vẫy/co–duỗi nhẹ các ngón
+hai lần trong tối đa 4 giây**. Ít nhất ba ngón trỏ/giữa/áp út/út cùng cử động;
+không cần nắm kín tay hoặc đưa cả bàn tay sang trái–phải.
+Chương trình đo độ duỗi tương đối so với lúc mở tay, lọc trung vị ba mẫu rồi
+đếm hai lần cong–duỗi. Nhãn tĩnh thoáng qua lúc cong ngón không xóa lịch sử Wave.
+Tay xòe giữ yên là Open Palm; dịch cả bàn tay hoặc chỉ một/hai ngón động không
+đủ tạo Wave.
 
 Khi nhận đủ hai chu kỳ, màn hình hiện `WAVE - GREET SELECTED` và có **3 giây
 đổi sang Thumbs Up**. Giữ ngón cái để duy trì tín hiệu trong lúc robot chào.
@@ -103,8 +104,24 @@ RUNNING cũng hủy ngay. Khi đang thu Wave hoặc chờ xác nhận, một fra
 có thể bị model gọi là Closed Fist; chỉ nắm giữ 0,4 giây mới hủy để không nhầm
 với pha co ngón của Wave. Nắm tay khi không thu Wave vẫn là lệnh hủy.
 
-Cấu hình Wave: `wave_window_s`, `wave_min_cycles`, `wave_confirm_window_s`.
-Log có `finger_extension`, `finger_phase`, `wave_cycles`, `ready`, `blocked_reason`.
+Cấu hình Wave: `wave_window_s`, `wave_min_cycles`, `wave_min_swing`,
+`wave_confirm_window_s`. Log có `finger_extension`, `thumb_open`, `finger_phase`,
+`wave_cycles`, `ready`, `blocked_reason`.
+
+### Thử Wave riêng bằng webcam
+
+Đóng phiên demo cũ bằng Ctrl+C để nhả webcam, rồi chạy:
+
+```bash
+cd /home/admin1/xla/wk4/week6/ros2_ws/src/bai06_turtlebot4
+./scripts/test_wave.sh
+```
+
+Màn hình vẽ khung xương tay, hướng dẫn và `Wave events: N`. Xòe tay giữ yên:
+bộ đếm không tăng. Xòe tay rồi vẫy nhẹ các ngón hai lần: bộ đếm tăng một.
+Chế độ này không mở Gazebo, không chạy node hành vi và không phát
+`/detected_gesture`. Ctrl+C đóng cửa sổ. Sau đó chạy demo bằng
+`BAI06_SKIP_BUILD=1 ./scripts/run_demo.sh`; Wave chọn chào, Thumb Up mới cho chạy.
 
 Có thể đặt `BAI06_OUTPUT_DIR`, `BAI06_ROS_DOMAIN_ID`, `BAI06_MODEL`,
 `BAI06_PYTHON_DEPS` hoặc `BAI06_UNDERLAY` trước lệnh chạy. Dùng
@@ -126,6 +143,7 @@ config/simulation.yaml                      Cấu hình Create 3 lúc khởi đ�
 worlds/gesture_arena.sdf                    Sàn trống 12 x 12 m
 models/gesture_recognizer.task              Model MediaPipe chính thức
 scripts/run_demo.sh                        Mở toàn bộ demo
+scripts/test_wave.sh                       Thử webcam/Wave riêng, không điều khiển robot
 scripts/arrange_windows.py                  Căn hai cửa sổ
 scripts/record_screen.py                    Ghi màn hình thật
 scripts/prepare_robot.sh                    Undock thủ công khi cần chuẩn bị lại

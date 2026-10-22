@@ -28,8 +28,9 @@ class GestureRecognitionNode(Node):
             ('frame_width', 640), ('frame_height', 480),
             ('show_window', True), ('mirror', True), ('max_result_age_s', 0.25),
             ('output_dir', ''),
-            ('wave_window_s', 3.0), ('wave_min_cycles', 2),
+            ('wave_window_s', 4.0), ('wave_min_cycles', 2), ('wave_min_swing', 0.22),
             ('wave_confirm_window_s', 3.0),
+            ('camera_test_only', False),
         ]:
             self.declare_parameter(name, value)
         self.output_dir = self.get_parameter('output_dir').value
@@ -53,7 +54,9 @@ class GestureRecognitionNode(Node):
             num_hands=2,
         )
         self.recognizer = mp.tasks.vision.GestureRecognizer.create_from_options(options)
-        self.gesture_pub = self.create_publisher(String, '/detected_gesture', 1)
+        self.camera_test_only = bool(self.get_parameter('camera_test_only').value)
+        self.gesture_pub = (None if self.camera_test_only else
+                            self.create_publisher(String, '/detected_gesture', 1))
         self.status_pub = self.create_publisher(String, '/gesture_status', 1)
         self.create_subscription(String, '/behavior_status', self.on_behavior, 1)
         self.behavior = 'IDLE'
@@ -64,7 +67,9 @@ class GestureRecognitionNode(Node):
         self.router = GestureRouter(
             confirm_window_s=float(self.get_parameter('wave_confirm_window_s').value),
             window_s=float(self.get_parameter('wave_window_s').value),
+            min_swing=float(self.get_parameter('wave_min_swing').value),
             min_cycles=int(self.get_parameter('wave_min_cycles').value))
+        self.wave_count = 0
         self.last_timestamp_ms = -1
         self.seq = 0
         self.show = bool(self.get_parameter('show_window').value)
@@ -130,6 +135,8 @@ class GestureRecognitionNode(Node):
             raw = 'STALE_RESULT'
             pose = None
         label = self.router.update(now, raw, pose, self.behavior_state)
+        if label == 'Wave':
+            self.wave_count += 1
         self.publish(label, confidence, raw, now, pose)
         if self.show:
             draw_hand_landmarks(frame, result.hand_landmarks)
@@ -145,13 +152,15 @@ class GestureRecognitionNode(Node):
                      else f'model {confidence:.2f}')
             cv2.putText(display, f'{title} | {score}', (12, 29),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.75, (70, 255, 100), 2)
-            cv2.putText(display, self.behavior, (12, 57),
+            state_text = (f'Camera test | Wave events: {self.wave_count}'
+                          if self.camera_test_only else self.behavior)
+            cv2.putText(display, state_text, (12, 57),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.48, (240, 240, 240), 1)
             hint = (f'THUMB UP to confirm | {self.router.transition_until - now:.1f}s'
                     if pending
                     else 'THUMB UP to confirm' if self.behavior_state == 'SELECTED'
                     else 'Keep one hand visible' if self.behavior_state == 'RUNNING'
-                    else f'Curl + extend fingers | cycles {self.router.wave.cycles}/2'
+                    else f'{self.router.wave.hint} | {self.router.wave.cycles}/2'
                     if pose is not None
                     else 'Wave / 1 finger / 2 fingers: select, then THUMB UP')
             cv2.putText(display, hint, (12, 85),
@@ -168,10 +177,12 @@ class GestureRecognitionNode(Node):
         self.seq += 1
         if not rclpy.ok():
             return
-        self.gesture_pub.publish(String(data=label))
+        if self.gesture_pub is not None:
+            self.gesture_pub.publish(String(data=label))
         record = dict(seq=self.seq, monotonic=now, wall=time.time(),
                       label=label, raw=raw, confidence=confidence,
                       finger_extension=pose.extension if pose else None,
+                      thumb_open=pose.thumb_open if pose else None,
                       finger_phase=self.router.wave.phase,
                       wave_cycles=self.router.wave.cycles,
                       ready=self.ready, blocked_reason=self.blocked_reason)
