@@ -59,17 +59,31 @@ hoặc bàn phím phát vận tốc trong lúc demo. Nhấn Ctrl+C tại termina
 | Wave: xòe 5 ngón rồi vẫy nhẹ các ngón hai lần | Chọn chào trái–phải rồi về hướng gần ban đầu |
 | Pointing Up: giơ ngón trỏ | Chọn tiến–lùi 4 chu kỳ, mỗi chặng 0,40 m |
 | Victory: giơ hai ngón chữ V | Chọn đi tròn một vòng, bán kính 0,60 m |
-| Thumbs Up: giơ ngón cái | Xác nhận và thực hiện lựa chọn đúng một lần |
-| Open Palm: xòe cả bàn tay | Dừng ngay khi đang chạy, xóa lựa chọn |
-| Closed Fist: nắm tay | Hủy hành vi, trở về chờ |
+| Thumbs Up: giơ ngón cái | Xác nhận chạy; khi PAUSED thì tiếp tục phần còn lại |
+| Open Palm: xòe cả bàn tay | Tạm dừng ngay, giữ hành vi và tiến độ (PAUSED) |
+| Closed Fist: nắm tay | Hủy hành vi và toàn bộ tiến độ, trở về chờ (IDLE) |
 
-Mọi chuyển động, kể cả chào, đều cần chọn rồi xác nhận. Khi đang chạy, giữ một
-cử chỉ hợp lệ trong ảnh để duy trì tín hiệu. Rút tay, camera lỗi, nhiều tay hoặc
-mất kết quả hợp lệ quá 0,5 s làm robot dừng; muốn chạy tiếp phải chọn và xác nhận lại.
+Mọi chuyển động, kể cả chào, đều cần chọn rồi xác nhận. **Sau khi Thumb Up
+xác nhận, có thể bỏ tay khỏi ảnh; robot tự chạy hết tác vụ theo odometry.**
+Frame `NO_HAND` hoặc `UNKNOWN` mới vẫn cho biết camera/node nhận diện đang chạy.
+Ở trạng thái SELECTED, bỏ tay ra sẽ hủy lựa chọn.
+
+**Open Palm → PAUSED:** vận tốc về 0 ngay, giữ pha, chu kỳ và tiến độ chặng.
+Thumb Up xác nhận để tiếp tục phần còn lại. Ví dụ đang lùi ở lượt 3/4 thì tiếp
+tục chặng lùi đó, không quay lại lượt 1. Có thể bỏ tay ra trong lúc PAUSED;
+robot đứng yên đến khi nhận Thumb Up. **Closed Fist → IDLE:** xóa lựa chọn và
+tiến độ; muốn chạy cần chọn lại rồi xác nhận. Open Palm khi mới chọn nhưng
+chưa chạy vẫn giữ lựa chọn; Thumb Up sau đó bắt đầu tác vụ.
+
+Camera đọc lỗi/đóng, kết quả quá cũ, nhiều tay hoặc node nhận diện im lặng quá
+0,5 s vẫn làm robot dừng và hủy tác vụ. Mất odom, hazard và giới hạn vùng chạy
+vẫn được kiểm tra. Kênh hoạt động trở lại không tự chạy lại tác vụ đã hủy.
 
 Pointing Up, Victory và Thumbs Up cần ít nhất 3 kết quả hợp lệ qua 0,2 s.
 Một frame UNKNOWN xen giữa không xóa chuỗi nếu cách mẫu hợp lệ trước tối đa
-0,18 s; UNKNOWN không gia hạn watchdog. Lệnh dừng/hủy không chờ bộ lọc này.
+0,18 s; UNKNOWN không xác nhận hoặc gia hạn lựa chọn chưa chạy. Sau xác nhận,
+watchdog kiểm tra kết quả camera mới, không bắt giữ một cử chỉ hợp lệ. Lệnh
+tạm dừng/hủy không chờ bộ lọc này.
 Giữ nguyên cử chỉ chỉ tạo một sự kiện; giữ Thumbs Up không kích hoạt lại sau khi
 hành vi hoàn thành.
 
@@ -95,11 +109,12 @@ Tay xòe giữ yên là Open Palm; dịch cả bàn tay hoặc chỉ một/hai n
 đủ tạo Wave.
 
 Khi nhận đủ hai chu kỳ, màn hình hiện `WAVE - GREET SELECTED` và có **3 giây
-đổi sang Thumbs Up**. Giữ ngón cái để duy trì tín hiệu trong lúc robot chào.
+đổi sang Thumbs Up**. Sau xác nhận có thể bỏ tay ra để robot chào hết ba pha.
 Wave chỉ chọn, chưa phát vận tốc. Topic phát `Wave` một lần; `WAVE_PENDING`
 chỉ duy trì lựa chọn chào trên frame tay mới, không tạo thêm lần chọn và không
 cho phép robot đang chạy tiếp tục bằng nhãn này. Mất tay, nhiều tay hoặc kết quả
-quá cũ xóa lựa chọn. Hết đoạn xác nhận mà vẫn mở tay thì hủy lựa chọn.
+quá cũ xóa lựa chọn khi đang SELECTED. Hết đoạn xác nhận mà vẫn mở tay thì
+chuyển PAUSED, giữ lựa chọn đến khi Thumb Up hoặc Closed Fist.
 
 **Thumb Up:** ngưỡng chung của các class là 0,60. Riêng Thumb Up dưới mức
 này được nhận từ 0,55 và duy trì từ 0,45 khi ngón cái duỗi, các ngón còn lại co.
@@ -107,8 +122,8 @@ Mỗi frame vẫn phải có dự đoán `Thumb_Up` mới từ model; không l�
 trì tín hiệu. Mất tay, nhiều tay, kết quả quá cũ hoặc đổi class xóa trạng thái
 này. Node hành vi vẫn cần ít nhất ba mẫu qua 0,2 giây để xác nhận.
 
-**Open Palm khi RUNNING dừng ngay**, không phụ thuộc bộ đếm Wave. Nắm tay khi
-RUNNING cũng hủy ngay. Khi đang thu Wave hoặc chờ xác nhận, một frame co ngón
+**Open Palm khi RUNNING tạm dừng ngay**, không phụ thuộc bộ đếm Wave; Thumb Up
+tiếp tục. Nắm tay khi RUNNING/PAUSED hủy ngay. Khi đang thu Wave hoặc chờ xác nhận, một frame co ngón
 có thể bị model gọi là Closed Fist; chỉ nắm giữ 0,4 giây mới hủy để không nhầm
 với pha co ngón của Wave. Nắm tay khi không thu Wave vẫn là lệnh hủy.
 
@@ -178,9 +193,22 @@ Nhãn chuẩn là `Wave`, `Pointing_Up`, `Victory`, `Thumb_Up`, `Open_Palm`,
 `Closed_Fist`; `Thumb_Up` là tên class thật của MediaPipe. `/gesture_status`
 và `/behavior_status` dùng `std_msgs/msg/String` chứa JSON để hiển thị điểm nhận
 diện, trạng thái, pha và chu kỳ. `NO_HAND`, `UNKNOWN`, `MULTIPLE_HANDS`,
-`STALE_RESULT` thể hiện kết quả không cấp quyền chuyển động.
+`STALE_RESULT` là các kết quả nội bộ. `NO_HAND`/`UNKNOWN` không chọn hoặc xác
+nhận hành vi; trong tác vụ đã xác nhận, chúng là kết quả camera mới để duy trì
+kênh điều khiển. `CAMERA_ERROR`, `MULTIPLE_HANDS` và `STALE_RESULT` hủy tác vụ.
 
 ## Báo cáo và video demo
+
+Đã qua 44 kiểm tra logic và 15 nhóm kiểm tra trong Gazebo với nhãn/landmarks
+thử, odom và controller thật. Cả ba tác vụ hoàn thành khi đầu vào sau xác nhận
+là NO_HAND; mỗi tác vụ có tạm dừng rồi tiếp tục đúng pha. Tiến–lùi đủ 8 chặng,
+0,401–0,411 m/chặng; vòng tròn 6,292 rad, lệch điểm cuối khoảng 1,13 cm.
+Camera lỗi, im lặng kênh và nắm tay vẫn hủy tác vụ. Các kiểm tra này không thay
+thế demo người thực hiện cử chỉ bằng webcam.
+
+Báo cáo có 13 trang, 15 hình: hai ảnh Gazebo thật, sơ đồ cử chỉ/trạng thái,
+đặc trưng landmarks từ webcam và đồ thị chuyển động/tạm dừng/kênh điều khiển.
+
 
 - [Báo cáo PDF](docs/report/Bao_cao_23020719_Bai_thuc_hanh_06.pdf)
 - [Source LaTeX sửa trên Prism](docs/report/Bao_cao_23020719_Bai06_LaTeX_Prism.zip)

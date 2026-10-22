@@ -16,6 +16,8 @@ from std_msgs.msg import String
 
 CHOICES = {'Wave': 'GREET', 'Pointing_Up': 'FORWARD_BACKWARD_4',
            'Victory': 'CIRCLE'}
+FRAME_LABELS = set(CHOICES) | {'Thumb_Up', 'Open_Palm', 'Closed_Fist',
+                              'NO_HAND', 'UNKNOWN'}
 
 
 def yaw_of(q):
@@ -68,6 +70,8 @@ class RobotBehaviorNode(Node):
         self.phase_index = 0
         self.cycle = 0
         self.last_gesture_at = 0.0
+        self.last_signal_at = 0.0
+        self.task_started = False
         self.last_odom_at = 0.0
         self.odom = None
         self.docked = None
@@ -96,7 +100,7 @@ class RobotBehaviorNode(Node):
             data = json.loads(msg.data)
             self.sim_ready = bool(data['ready'])
             self.preparation_reason = data.get('reason', 'PREPARING')
-            if not self.sim_ready and self.state in {'SELECTED', 'RUNNING'}:
+            if not self.sim_ready and self.state in {'SELECTED', 'RUNNING', 'PAUSED'}:
                 self.stop('ROBOT_NOT_READY')
         except (ValueError, KeyError, TypeError):
             pass
@@ -129,30 +133,35 @@ class RobotBehaviorNode(Node):
         self.pose = (p.x, p.y, yaw)
         self.odom = msg
         self.last_odom_at = now
-        if self.state == 'RUNNING' and (
+        if self.state in {'RUNNING', 'PAUSED'} and (
             abs(p.x) > self.cfg['arena_limit'] or abs(p.y) > self.cfg['arena_limit']
         ):
             self.stop('ARENA_LIMIT')
 
     def on_dock(self, msg):
         self.docked = bool(msg.is_docked)
-        if self.docked and self.state == 'RUNNING':
+        if self.docked and self.state in {'RUNNING', 'PAUSED'}:
             self.stop('DOCKED')
 
     def on_hazard(self, msg):
         unsafe = {HazardDetection.BUMP, HazardDetection.CLIFF,
                   HazardDetection.STALL, HazardDetection.WHEEL_DROP}
         self.hazard_active = any(d.type in unsafe for d in msg.detections)
-        if self.state == 'RUNNING' and self.hazard_active:
+        if self.state in {'RUNNING', 'PAUSED'} and self.hazard_active:
             self.stop('HAZARD')
 
     def on_gesture(self, msg):
         now = time.monotonic()
         label = msg.data
         self.last_label = label
+        # NO_HAND/UNKNOWN are fresh camera results, not a lost camera link.
+        # Once confirmed, the odometry-controlled task runs autonomously.
+        if label in FRAME_LABELS:
+            self.last_signal_at = now
         if label == 'WAVE_PENDING':
             if self.state == 'SELECTED' and self.selected == 'GREET':
                 self.last_gesture_at = now
+                self.last_signal_at = now
             return
         if not self.sim_ready and (label in CHOICES or label == 'Thumb_Up'):
             self.send_cmd(0.0, 0.0)
@@ -161,7 +170,7 @@ class RobotBehaviorNode(Node):
         if label in CHOICES or label in {'Thumb_Up', 'Open_Palm', 'Closed_Fist'}:
             self.last_gesture_at = now
         if label == 'Open_Palm':
-            self.stop('OPEN_PALM')
+            self.pause()
             self.candidate = label
             self.fired = True
             return
@@ -170,18 +179,27 @@ class RobotBehaviorNode(Node):
             self.candidate = label
             self.fired = True
             return
-        if label in {'NO_HAND', 'CAMERA_ERROR', 'MULTIPLE_HANDS', 'STALE_RESULT'}:
+        if label in {'CAMERA_ERROR', 'MULTIPLE_HANDS', 'STALE_RESULT'}:
             self.stop(label)
             self.candidate = label
             self.fired = False
             return
+        if label == 'NO_HAND':
+            if self.state == 'SELECTED':
+                self.stop('NO_HAND_BEFORE_CONFIRM')
+            self.candidate = None
+            self.candidate_count = 0
+            self.fired = False
+            return
         if label == 'UNKNOWN':
             # A single uncertain frame while changing pose must not discard
-            # valid confirmation samples. It never refreshes the watchdog.
+            # valid confirmation samples. It cannot confirm or keep a choice.
             if now - self.candidate_last_at > 0.18:
                 self.candidate = None
                 self.candidate_count = 0
                 self.fired = False
+            return
+        if label not in CHOICES and label != 'Thumb_Up':
             return
         if label != self.candidate or now - self.candidate_last_at > 0.18:
             self.candidate = label
@@ -202,8 +220,11 @@ class RobotBehaviorNode(Node):
             self.selected = CHOICES[label]
             self.state = 'SELECTED'
             self.phase = ''
+            self.phase_index = self.cycle = 0
+            self.phase_start_pose = None
+            self.task_started = False
             self.event(f'SELECT_{label}')
-        elif label == 'Thumb_Up' and self.state == 'SELECTED':
+        elif label == 'Thumb_Up' and self.state in {'SELECTED', 'PAUSED'}:
             if self.docked is not False:
                 self.stop('NOT_UNDOCKED')
             elif self.hazard_active:
@@ -213,10 +234,15 @@ class RobotBehaviorNode(Node):
             elif max(abs(self.pose[0]), abs(self.pose[1])) > self.cfg['arena_limit']:
                 self.stop('ARENA_LIMIT')
             else:
-                self.start()
+                if self.state == 'PAUSED' and self.task_started:
+                    self.state = 'RUNNING'
+                    self.event('RESUMED')
+                else:
+                    self.start()
 
     def start(self):
         self.state = 'RUNNING'
+        self.task_started = True
         self.cycle = 0
         self.phase_index = 0
         self.phase_start_pose = self.pose
@@ -232,6 +258,12 @@ class RobotBehaviorNode(Node):
                                    if math.hypot(x, y) > 0.1 else yaw)
         self.event('CONFIRMED')
 
+    def pause(self):
+        self.send_cmd(0.0, 0.0)
+        if self.state in {'SELECTED', 'RUNNING'}:
+            self.state = 'PAUSED'
+            self.event('PAUSED_OPEN_PALM')
+
     def stop(self, reason):
         changed = self.state != 'IDLE' or self.selected is not None
         self.state = 'IDLE'
@@ -241,6 +273,11 @@ class RobotBehaviorNode(Node):
         if changed:
             self.event(reason)
         self.cycle = 0
+        self.phase_index = 0
+        self.phase_start_pose = None
+        self.phase_start_yaw_travel = self.yaw_travel
+        self.circle_heading = 0.0
+        self.task_started = False
 
     def phase_distance(self):
         x0, y0, yaw0 = self.phase_start_pose
@@ -272,7 +309,11 @@ class RobotBehaviorNode(Node):
 
     def tick(self):
         now = time.monotonic()
-        if self.state in {'SELECTED', 'RUNNING'} and (
+        if self.state in {'SELECTED', 'RUNNING', 'PAUSED'} and (
+            now - self.last_signal_at > self.cfg['watchdog_s']
+        ):
+            self.stop('CONTROL_SIGNAL_TIMEOUT')
+        elif self.state == 'SELECTED' and (
             now - self.last_gesture_at > self.cfg['watchdog_s']
         ):
             self.stop('GESTURE_TIMEOUT')

@@ -119,13 +119,16 @@ Cử chỉ & Cách thực hiện & Hành vi\\\midrule
 Wave & Xòe năm ngón rồi vẫy nhẹ các ngón hai lần. & Chọn chào: xoay trái, phải rồi về hướng gần ban đầu.\\
 Pointing Up & Duỗi ngón trỏ lên, gập các ngón còn lại. & Chọn tiến--lùi 4 chu kỳ, tổng 8 chặng.\\
 Victory & Duỗi ngón trỏ và ngón giữa thành chữ V. & Chọn đi theo quỹ đạo tròn một vòng.\\
-Thumbs Up & Nắm các ngón và giơ ngón cái. & Xác nhận lựa chọn, thực hiện đúng một lần.\\
-Open Palm & Xòe cả năm ngón về phía camera. & Dừng ngay khi đang chạy, xóa lựa chọn.\\
-Closed Fist & Nắm kín bàn tay. & Hủy hành vi, trở về trạng thái chờ.\\\bottomrule
+Thumbs Up & Nắm các ngón và giơ ngón cái. & Xác nhận chạy hoặc tiếp tục tác vụ đang PAUSED.\\
+Open Palm & Xòe cả năm ngón về phía camera. & Tạm dừng ngay, giữ hành vi và tiến độ.\\
+Closed Fist & Nắm kín bàn tay. & Hủy hành vi và tiến độ, trở về trạng thái chờ.\\\bottomrule
 \end{tabular}
 \caption{Quy ước cử chỉ và hành vi. Mọi hành vi chuyển động đều cần xác nhận.}
 \end{table}
 
+\fig{figures/gesture_poses.pdf}{.94}{Sơ đồ minh họa sáu cử chỉ; Wave có chuyển động các ngón.}
+\clearpage
+\subsection{Landmarks và chuyển động các ngón}
 \begin{minipage}[t]{.29\linewidth}\centering
 \vspace{0pt}\includegraphics[width=.94\linewidth]{figures/hand_landmarks.pdf}
 \captionof{figure}{Sơ đồ 21 điểm bàn tay.}
@@ -144,17 +147,26 @@ có sẵn của model.
 \end{minipage}
 
 \textbf{Phân biệt Wave và Open Palm.}
-Khi robot đang chạy, Open Palm được chuyển thẳng thành lệnh dừng; không chờ nhận
-Wave. Khi đứng yên, Wave chỉ tạo lựa chọn chào. Cửa sổ hiển thị bộ đếm 3 s để
+Khi robot đang chạy, Open Palm được chuyển thẳng thành lệnh tạm dừng; không chờ nhận
+Wave. Khi đang IDLE, Wave chỉ tạo lựa chọn chào. Cửa sổ hiển thị bộ đếm 3 s để
 đổi từ tay mở sang Thumb Up; tay mở trong đoạn này giữ lựa chọn, không tạo lệnh
-chạy. Hết đoạn chuyển mà vẫn mở tay thì xóa lựa chọn. UNKNOWN ngắn tối đa 0,18 s
-không xóa các mẫu xác nhận; nó không gia hạn watchdog. Khi đang thu Wave, nắm
+chạy. Hết đoạn chuyển mà vẫn mở tay thì chuyển PAUSED, giữ lựa chọn. UNKNOWN ngắn tối đa 0,18 s
+không xóa các mẫu xác nhận; nó không xác nhận hành vi. Khi đang thu Wave, nắm
 giữ 0,4 s mới hủy để phân biệt với pha co ngón; khi đang chạy, nắm tay hủy ngay.
-Mất tay vẫn dừng ngay.
+Khi đang SELECTED, mất tay hủy lựa chọn.
 
 Cửa sổ webcam hiển thị ảnh gương, khung tay, nhãn, điểm model và trạng thái robot.
 Chỉ một tay được dùng để điều khiển. Kết quả có nhiều tay được coi là mơ hồ và làm
-robot dừng. Sau khi xác nhận, cần giữ một cử chỉ hợp lệ trong ảnh để duy trì tín hiệu.
+robot dừng. Sau xác nhận có thể bỏ tay khỏi ảnh; robot tự chạy hết tác vụ theo odom.
+\fig{figures/wave_features.pdf}{.97}{Đặc trưng đầu ngón từ webcam thật. Vạch đỏ đánh dấu Wave; bộ đếm về 0 sau khi phát sự kiện.}
+\clearpage
+
+\section{Mô phỏng và chuẩn bị robot}
+World có sàn trống 12 × 12 m, một TurtleBot 4 Standard và dock. Node chuẩn bị
+kiểm tra controller bánh xe, cấu hình lùi và thực hiện undock. Hành vi chỉ được
+xác nhận khi robot đã ra khỏi dock, có odometry mới và không có hazard.
+\fig{figures/gazebo_arena.png}{.98}{Môi trường gesture\_arena trong Gazebo; robot và dock nằm trong vùng chạy trống.}
+\fig{figures/gazebo_closeup.png}{.88}{TurtleBot 4 Standard và dock trong cùng phiên mô phỏng.}
 \clearpage
 
 \section{Điều khiển hành vi và cơ chế dừng}
@@ -179,42 +191,87 @@ Bán kính cấu hình là \(R=v/\omega=0{,}60\,\mathrm{m}\). Robot dừng khi t
 Điều kiện & Xử lý trong chương trình\\\midrule
 Cử chỉ chọn/xác nhận & Cần ít nhất 3 kết quả cùng nhãn, ổn định tối thiểu 0,2 s.\\
 Giữ nguyên cử chỉ & Chỉ tạo một sự kiện; không chạy lại hoặc xếp thêm lệnh trong khi đang chạy.\\
-Open Palm, Closed Fist & Publish Twist bằng 0 ngay trong callback; xóa lựa chọn và về IDLE.\\
-Mất tay, camera lỗi, nhiều tay & Dừng ngay khi nhận kết quả tương ứng.\\
-Không có cử chỉ hợp lệ mới & Watchdog 0,5 s theo monotonic time; UNKNOWN không gia hạn quyền chạy.\\
-Kết quả suy luận đến muộn & Bỏ kết quả quá 0,25 s; không dùng nhãn cũ làm tín hiệu sống.\\
+Open Palm / Thumb Up & Phát Twist bằng 0 ngay, chuyển PAUSED và giữ tiến độ; Thumb Up xác nhận để tiếp tục.\\
+Closed Fist & Hủy cả lựa chọn lẫn tiến độ, phát 0 và trở về IDLE.\\
+NO\_HAND / UNKNOWN mới & Sau xác nhận, tác vụ tiếp tục theo odom; ở SELECTED, bỏ tay hủy lựa chọn.\\
+Camera lỗi, nhiều tay, stale & Hủy tác vụ. Kết quả quá 0,25 s bị bỏ; kênh im lặng quá 0,5 s thì watchdog phát 0.\\
 Mất odom hoặc có hazard & Odom quá 0,5 s, ra ngoài vùng chạy hoặc bump/cliff/stall/wheel drop đều dừng.\\\bottomrule
 \end{tabular}
 \caption{Lọc nhiễu, chống lặp và điều kiện dừng.}
 \end{table}
-Vận tốc đầu ra bị chặn ở 0,15 m/s và 0,5 rad/s. Sau dừng hoặc mất tín hiệu,
-robot cần được chọn và xác nhận lại; tín hiệu trở lại không tự tiếp tục hành vi.
+Vận tốc đầu ra bị chặn ở 0,15 m/s và 0,5 rad/s. PAUSED chỉ tiếp tục sau Thumb Up;
+sau hủy hoặc lỗi kênh, phải chọn và xác nhận lại. Bỏ tay khác với camera bị ngắt.
 Các khoảng cách, góc và tốc độ trên là giá trị cấu hình điều khiển.
 \clearpage
 
-\section{Kết quả chạy thử}
-Webcam laptop đã đọc được ảnh thật 640 × 480. Gazebo khởi chạy TurtleBot 4,
-action \code{/undock} trả về \code{SUCCEEDED}, robot về trạng thái chờ.
-Trong các lượt thử bằng webcam, log đã ghi nhận đủ năm nhãn tĩnh và các sự kiện
-chọn, xác nhận, hủy, mất tay hoặc hết hạn tín hiệu.
+\section{Kết quả kiểm tra tổng hợp}
+Webcam laptop đã đọc được ảnh thật 640 × 480; dữ liệu landmarks được dùng cho
+hình nhận Wave ở phần trên. Các số liệu chuyển động dưới đây lấy từ Gazebo thật,
+với nhãn/landmarks thử được phát qua ROS 2. Cách kiểm tra này xác minh node hành
+vi và cơ chế dừng, chưa thay thế video người thực hiện đủ sáu cử chỉ trên webcam.
 
 \begin{table}[H]\centering\small
-\begin{tabular}{@{}p{4.6cm}p{11.2cm}@{}}\toprule
-Nội dung & Kết quả quan sát\\\midrule
-Chọn và xác nhận & Pointing Up/Victory tạo SELECTED; Thumb Up chuyển sang RUNNING.\\
-Đi tròn và căn hướng & Có pha ALIGN\_CIRCLE rồi CIRCLE; quỹ đạo odom thay đổi theo lệnh vận tốc.\\
-Hủy bằng nắm tay & Closed Fist đưa robot về IDLE, lệnh vận tốc về 0.\\
-Mất tín hiệu, nhiều tay & Ghi nhận dừng với GESTURE\_TIMEOUT và MULTIPLE\_HANDS.\\
-Kiểm tra node trong Gazebo & Hoàn thành chào ba pha; tiến--lùi đủ 8 chặng, mỗi chặng 0,401--0,412 m; đi tròn 6,304 rad, lệch điểm cuối 0,012 m. Đầu vào landmarks/nhãn giả, không thay thế demo webcam.\\
-Dừng trong Gazebo & Open Palm đưa lệnh về 0 sau 0,015--0,018 s ở ba hành vi. Nắm tay, mất tay và hết tín hiệu đều dừng; giữ Thumb Up sau khi xong không chạy lại.\\
-Kiểm tra logic & 38/38 trường hợp kiểm tra qua; gồm Wave lệch nhịp, Thumb Up dao động điểm, xác nhận, chống lặp và dừng.\\\bottomrule
+\begin{tabular}{@{}p{4.5cm}p{11.3cm}@{}}\toprule
+Nội dung & Kết quả\\\midrule
+Kiểm tra logic & 44/44 trường hợp qua; chọn/xác nhận, Wave, Thumb Up, PAUSED/resume, tự chạy và lỗi kênh.\\
+Kiểm tra Gazebo & 15/15 nhóm qua; cả ba tác vụ hoàn thành với NO\_HAND sau xác nhận và có tạm dừng giữa chừng.\\
+Tiến--lùi & Đủ 4 chu kỳ/8 chặng; độ dài mỗi chặng 0,401--0,411 m. Tạm dừng ở chặng lùi của lượt 3 rồi tiếp tục.\\
+Đi tròn & Góc quay pha CIRCLE đạt 6,292 rad; cách điểm đầu khoảng 0,0113 m.\\
+Tạm dừng & Nhãn Open Palm đến lệnh 0 mất khoảng 0,011--0,036 s. Đây là độ trễ topic, không phải thời gian thân robot dừng hẳn.\\
+Vùng chạy & Không ghi nhận hazard khi RUNNING; tọa độ tuyệt đối lớn nhất 1,545 m, trong giới hạn 4,5 m.\\\bottomrule
 \end{tabular}
-\caption{Kết quả có trong dữ liệu chạy thử và kiểm tra logic.}
+\caption{Kết quả kiểm tra với đầu vào nhãn thử và cảm biến Gazebo thật.}
 \end{table}
-\fig{figures/trajectories.pdf}{1.0}{Quỹ đạo odom ba lượt thử đi tròn, kết thúc do nhiều tay, hết tín hiệu và nắm tay.}
-\fig{figures/cancel_command.pdf}{.96}{Lệnh vận tốc về 0 sau sự kiện Closed Fist. Đây là lệnh điều khiển, không phải phép đo thời gian thân robot dừng hẳn.}
-Các hình trên là lượt webcam dừng giữa chừng. Ba hành vi đã hoàn thành trong
-kiểm tra Gazebo với đầu vào giả; webcam thật vẫn cần thử đủ ba hành vi và lệnh dừng.
+
+\textbf{Hành vi chào.} Robot thực hiện đủ ba pha trái--phải--về hướng ban đầu.
+Khoảng tô cam là PAUSED ở pha quay phải; Thumb Up cho tiếp tục pha đó. Sau xác
+nhận, đầu vào NO\_HAND được gửi liên tục đến khi hoàn thành.
+\fig{figures/greet_trace.pdf}{.98}{Góc quay odom và lệnh quay khi chào; khoảng tô cam là tạm dừng.}
+\clearpage
+
+\section{Kết quả tiến--lùi bốn chu kỳ}
+Robot tiến rồi lùi bốn lần; mỗi chặng đặt 0,40 m. Đường độ dời đổi chiều đủ tám
+chặng. Lượt thứ ba có một khoảng tạm dừng ở chặng BACKWARD, sau đó robot tiếp
+tục phần còn lại và kết thúc lượt thứ tư. Không cần giữ tay trong ảnh sau xác nhận.
+\fig{figures/forward_backward_trace.pdf}{.98}{Độ dời odom và lệnh vận tốc của bốn chu kỳ; vùng cam nằm ở lượt 3.}
+\fig{figures/eight_legs.pdf}{.98}{Tám chặng đo trong Gazebo. Dấu dương là tiến, dấu âm là lùi; đường đứt là mức 0,40 m.}
+Độ dài nhỏ nhất là 0,401 m và lớn nhất là 0,411 m. Sai lệch gồm bước cập nhật
+điều khiển và quán tính mô phỏng khi đổi pha; số chu kỳ vẫn được đếm theo odom.
+\clearpage
+
+\section{Kết quả di chuyển theo quỹ đạo tròn}
+Sau bước căn hướng, robot dùng vận tốc thẳng 0,12 m/s và vận tốc quay 0,20 rad/s,
+tương ứng bán kính cấu hình 0,60 m. Quỹ đạo odom tạo thành một vòng; điểm kết thúc
+cách điểm bắt đầu khoảng 1,13 cm. Ô vuông cam đánh dấu vị trí tạm dừng.
+\fig{figures/circle_path.pdf}{.74}{Quỹ đạo tròn từ odom; đường đứt là vòng tham chiếu bán kính 0,60 m.}
+\fig{figures/circle_trace.pdf}{.98}{Góc so với lúc xác nhận, gồm ALIGN rồi CIRCLE; sau PAUSED robot hoàn thành vòng.}
+\clearpage
+
+\section{Tạm dừng, hủy và bỏ tay khỏi ảnh}
+\textbf{Open Palm và Thumb Up.} Open Palm phát lệnh 0 ngay trong callback rồi
+chuyển sang PAUSED. Node giữ hành vi, chặng, chu kỳ và mốc odometry. Ở lượt
+3/4 dưới đây, lệnh lùi bằng 0 trong vùng tô cam; độ dời giữ ổn định sau khi robot
+hết quán tính. Thumb Up cho tiếp tục chặng lùi, không khởi động lại lượt 1.
+\fig{figures/pause_resume_trace.pdf}{.98}{Tạm dừng và tiếp tục chặng BACKWARD của lượt 3/4. Vạch đỏ: Open Palm; vạch xanh: Thumb Up.}
+
+\textbf{Closed Fist.} Nắm tay hủy cả lựa chọn lẫn tiến độ và đưa node về IDLE.
+Thumb Up sau đó không làm robot chạy; cần chọn lại hành vi trước khi xác nhận.
+\fig{figures/cancel_command.pdf}{.96}{Lệnh vận tốc về 0 sau Closed Fist trong dữ liệu webcam đã ghi.}
+\clearpage
+
+\subsection{Phân biệt không có tay và mất kênh camera}
+Sau xác nhận, robot được phép chạy tự động theo odom. Nếu webcam vẫn gửi kết quả
+mới NO\_HAND hoặc UNKNOWN thì tác vụ tiếp tục. Khi đang PAUSED, bỏ tay không làm
+robot tự chạy lại. Ở SELECTED, bỏ tay hủy lựa chọn.
+
+Khi camera đọc lỗi/đóng, kết quả quá cũ, phát hiện nhiều tay hoặc node nhận diện
+ngừng gửi dữ liệu quá 0,5 s, robot dừng và hủy tác vụ. Lỗi đã hết không tự khôi
+phục chuyển động; người dùng cần chọn rồi xác nhận lại.
+\fig{figures/autonomy_signal_trace.pdf}{.99}{Đầu vào nhãn thử, trạng thái và vận tốc đo qua ROS 2. Nền xanh là NO\_HAND; nền đỏ là camera lỗi hoặc im lặng kênh.}
+Trong lượt thử này, vận tốc vẫn dương khi đầu vào là NO\_HAND. Open Palm đưa về
+PAUSED, Thumb Up tiếp tục và Closed Fist đưa về IDLE. CAMERA\_ERROR làm dừng ngay;
+đoạn SILENCE cuối chỉ dừng sau khi watchdog hết hạn. Các trạng thái và lệnh trên
+được ghi từ node thật trong Gazebo.
 \clearpage
 
 \section{Cách chạy và liên kết bài nộp}
@@ -233,8 +290,8 @@ và ROS domain của phiên chạy. Nhấn Ctrl+C tại terminal đó để đó
 
 \textbf{Thao tác điều khiển.} Đưa một tay vào ảnh, thực hiện Wave, Pointing Up
 hoặc Victory để chọn; khi màn hình hiện SELECTED thì giơ Thumb Up để xác nhận.
-Giữ Thumb Up trong ảnh trong lúc robot chào; xòe tay sẽ dừng ngay. Xòe tay để dừng,
-nắm tay để hủy. Không dùng bàn phím để phát lệnh chuyển động trong phần demo.
+Sau xác nhận có thể bỏ tay khỏi ảnh. Xòe tay để tạm dừng; giơ Thumb Up để tiếp tục
+phần còn lại. Nắm tay để hủy và chọn lại từ đầu. Không dùng bàn phím phát vận tốc.
 
 \textbf{Mã nguồn và video.}
 \begin{itemize}

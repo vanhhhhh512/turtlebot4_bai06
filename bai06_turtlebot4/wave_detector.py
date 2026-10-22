@@ -203,7 +203,7 @@ class GestureRouter:
         if raw in {'NO_HAND', 'CAMERA_ERROR', 'MULTIPLE_HANDS', 'STALE_RESULT'}:
             self.reset()
             return raw
-        if state == 'RUNNING':
+        if state in {'RUNNING', 'PAUSED'}:
             self.reset()
             return 'Open_Palm' if raw == 'Open_Palm' or pose and pose.open else raw
         if raw != self.static_label:

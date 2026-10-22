@@ -101,7 +101,7 @@ class GestureRecognitionNode(Node):
                            'WAITING_FOR_UNDOCK': 'still docked',
                            'UNDOCKING': 'undocking', 'WAITING_FOR_ODOM': 'no odometry'}
                 self.behavior += ' / ' + reasons.get(self.blocked_reason, self.blocked_reason)
-            if self.selected == 'FORWARD_BACKWARD_4' and self.behavior_state == 'RUNNING':
+            if self.selected == 'FORWARD_BACKWARD_4' and self.behavior_state in {'RUNNING', 'PAUSED'}:
                 self.behavior += f" {min(data.get('cycle', 0) + 1, 4)}/4"
         except (KeyError, ValueError):
             pass
@@ -111,8 +111,8 @@ class GestureRecognitionNode(Node):
         now = time.monotonic()
         if not ok:
             self.static_filter.reset()
-            self.publish('NO_HAND', 0.0, 'CAMERA_ERROR', now)
-            self.router.update(now, 'NO_HAND')
+            self.publish('CAMERA_ERROR', 0.0, 'CAMERA_ERROR', now)
+            self.router.update(now, 'CAMERA_ERROR')
             time.sleep(0.05)
             return
         if self.mirror:
@@ -168,17 +168,18 @@ class GestureRecognitionNode(Node):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.48, (240, 240, 240), 1)
             hint = (f'THUMB UP to confirm | {self.router.transition_until - now:.1f}s'
                     if pending
+                    else 'THUMB UP: resume | CLOSED FIST: cancel' if self.behavior_state == 'PAUSED'
                     else 'THUMB UP to confirm' if self.behavior_state == 'SELECTED'
-                    else 'Keep one hand visible' if self.behavior_state == 'RUNNING'
+                    else 'Task running | hand may leave the camera' if self.behavior_state == 'RUNNING'
                     else f'{self.router.wave.hint} | {self.router.wave.cycles}/2'
                     if pose is not None
                     else 'Wave / 1 finger / 2 fingers: select, then THUMB UP')
             cv2.putText(display, hint, (12, 85),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.47, (0, 220, 255), 1)
             y = display.shape[0] - 39
-            cv2.putText(display, 'RUNNING: OPEN PALM stops | CLOSED FIST cancels', (12, y),
+            cv2.putText(display, 'OPEN PALM pauses | THUMB UP resumes | FIST cancels', (12, y),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.51, (230, 230, 230), 1)
-            cv2.putText(display, 'Lost hand / signal: stop. Select + confirm to restart.',
+            cv2.putText(display, 'No hand: task continues | Camera or signal lost: stop.',
                         (12, y + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.44, (180, 180, 180), 1)
             cv2.imshow('Bai 06 - laptop webcam', display)
             cv2.waitKey(1)
@@ -204,7 +205,7 @@ class GestureRecognitionNode(Node):
 
     def close(self):
         if rclpy.ok():
-            self.publish('NO_HAND', 0.0, 'SHUTDOWN', time.monotonic())
+            self.publish('CAMERA_ERROR', 0.0, 'SHUTDOWN', time.monotonic())
         self.recognizer.close()
         self.cap.release()
         if self.show:
