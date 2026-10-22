@@ -10,9 +10,7 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from irobot_create_msgs.msg import DockStatus, HazardDetection, HazardDetectionVector
 from rclpy.node import Node
-from rclpy.parameter import Parameter
 from rclpy.qos import qos_profile_sensor_data
-from rcl_interfaces.srv import SetParameters
 from std_msgs.msg import String
 
 
@@ -37,7 +35,6 @@ class RobotBehaviorNode(Node):
             ('linear_speed', 0.12), ('angular_speed', 0.42),
             ('leg_distance', 0.4), ('circle_radius', 0.6),
             ('arena_limit', 4.5), ('output_dir', ''),
-            ('configure_sim_backup', False),
             ('require_sim_ready', False),
         ]:
             self.declare_parameter(name, value)
@@ -91,36 +88,8 @@ class RobotBehaviorNode(Node):
         self.sim_ready = not self.get_parameter('require_sim_ready').value
         self.preparation_reason = 'WAITING_FOR_CONTROLLERS'
         self.create_subscription(String, '/simulation_ready', self.on_sim_ready, 1)
-        self.sim_backup_ready = not self.get_parameter('configure_sim_backup').value
-        self.sim_setup_future = None
-        self.sim_setup_sent_at = 0.0
-        if not self.sim_backup_ready:
-            self.sim_parameter_client = self.create_client(
-                SetParameters, '/motion_control/set_parameters')
-            self.create_timer(0.5, self.configure_sim_backup)
         self.create_timer(0.05, self.tick)
         self.get_logger().info('Waiting for fresh webcam gestures and odometry')
-
-    def configure_sim_backup(self):
-        # Enabled only by this package's Gazebo launch. Create 3 otherwise
-        # exhausts its short backup buffer before a 0.40 m reverse leg.
-        if self.sim_backup_ready:
-            return
-        if self.sim_setup_future is not None:
-            if time.monotonic() - self.sim_setup_sent_at < 3.0:
-                return
-            expired = self.sim_setup_future
-            self.sim_setup_future = None
-            self.sim_parameter_client.remove_pending_request(expired)
-            expired.cancel()
-            self.get_logger().warning('Backup parameter response timed out; retrying')
-        if not self.sim_parameter_client.service_is_ready():
-            return
-        request = SetParameters.Request(parameters=[Parameter(
-            'safety_override', Parameter.Type.STRING, 'backup_only').to_parameter_msg()])
-        self.sim_setup_future = self.sim_parameter_client.call_async(request)
-        self.sim_setup_sent_at = time.monotonic()
-        self.sim_setup_future.add_done_callback(self.on_sim_backup_configured)
 
     def on_sim_ready(self, msg):
         try:
@@ -131,22 +100,6 @@ class RobotBehaviorNode(Node):
                 self.stop('ROBOT_NOT_READY')
         except (ValueError, KeyError, TypeError):
             pass
-
-    def on_sim_backup_configured(self, future):
-        if future is not self.sim_setup_future:
-            return
-        try:
-            response = future.result()
-            self.sim_backup_ready = bool(response.results) and all(
-                result.successful for result in response.results)
-            if self.sim_backup_ready:
-                self.event('SIM_BACKUP_READY')
-            else:
-                self.get_logger().warning('Gazebo backup configuration rejected; reverse behavior blocked')
-        except Exception as exc:
-            self.get_logger().warning(f'Gazebo backup configuration failed: {exc}')
-        finally:
-            self.sim_setup_future = None
 
     def event(self, reason):
         record = dict(wall=time.time(), monotonic=time.monotonic(),
@@ -160,12 +113,10 @@ class RobotBehaviorNode(Node):
     def publish_status(self, reason=''):
         ready = self.sim_ready and self.docked is False
         blocked = (self.preparation_reason if not self.sim_ready else
-                   'WAITING_FOR_UNDOCK' if self.docked is not False else
-                   'WAITING_FOR_REVERSE_PERMISSION' if self.selected == 'FORWARD_BACKWARD_4'
-                   and not self.sim_backup_ready else '')
+                   'WAITING_FOR_UNDOCK' if self.docked is not False else '')
         self.status_pub.publish(String(data=json.dumps(dict(
             state=self.state, selected=self.selected, phase=self.phase,
-            cycle=self.cycle, reason=reason, sim_backup_ready=self.sim_backup_ready,
+            cycle=self.cycle, reason=reason,
             ready=ready, blocked_reason=blocked))))
 
     def on_odom(self, msg):
@@ -255,8 +206,6 @@ class RobotBehaviorNode(Node):
         elif label == 'Thumb_Up' and self.state == 'SELECTED':
             if self.docked is not False:
                 self.stop('NOT_UNDOCKED')
-            elif self.selected == 'FORWARD_BACKWARD_4' and not self.sim_backup_ready:
-                self.stop('SIM_BACKUP_NOT_READY')
             elif self.hazard_active:
                 self.stop('HAZARD_AT_CONFIRM')
             elif self.pose is None or now - self.last_odom_at > self.cfg['odom_timeout_s']:

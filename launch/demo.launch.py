@@ -7,7 +7,7 @@ from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchD
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
+from launch_ros.actions import Node, SetParametersFromFile
 from launch_ros.parameter_descriptions import ParameterValue
 
 
@@ -21,7 +21,6 @@ def generate_launch_description():
     nodes = [
         Node(package='bai06_turtlebot4', executable='robot_behavior_node',
              output='screen', parameters=[config, {'output_dir': output,
-                                                  'configure_sim_backup': True,
                                                   'require_sim_ready': True}]),
         Node(package='bai06_turtlebot4', executable='simulation_ready_node', output='screen'),
         Node(package='bai06_turtlebot4', executable='gesture_recognition_node',
@@ -39,6 +38,7 @@ def generate_launch_description():
         DeclareLaunchArgument('show_webcam', default_value='true'),
         DeclareLaunchArgument('recognition', default_value='true'),
         DeclareLaunchArgument('show_gazebo_gui', default_value='true'),
+        SetParametersFromFile(os.path.join(share, 'config', 'simulation.yaml')),
         SetEnvironmentVariable('IGN_GAZEBO_RESOURCE_PATH', ':'.join([
             os.path.join(sim, 'worlds'), '/opt/ros/humble/share',
             os.environ.get('IGN_GAZEBO_RESOURCE_PATH', '')])),

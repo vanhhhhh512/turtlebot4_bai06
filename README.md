@@ -78,9 +78,11 @@ nhận diện cử chỉ; nếu robot còn trong dock hoặc thiếu odom thì l
 trạng thái robot. `simulation_ready_node` kiểm tra/kích hoạt hai controller và
 gọi `/undock`; controller vẫn chặn chuyển động khi robot chưa sẵn sàng.
 
-Cấu hình quyền lùi chỉ áp dụng cho hành vi tiến–lùi, không chặn chào hoặc đi
-tròn. Yêu cầu cấu hình quá 3 giây không có phản hồi được hủy và gửi lại; camera
-không đợi yêu cầu này để nhận diện tay.
+`config/simulation.yaml` cấu hình `safety_override=backup_only` cho đúng node
+`/motion_control` ngay khi Gazebo khởi động để lùi đủ quãng đường. Node chuẩn bị
+đọc lại giá trị này, kiểm tra controller và undock trước phần điều khiển.
+Không có bước xin quyền lùi trong lúc làm cử chỉ; cả ba hành vi dùng chung
+luồng chọn → Thumbs Up → thực hiện. Camera nhận diện liên tục trong lúc chuẩn bị.
 
 **Wave:** đưa lòng bàn tay ra trước webcam, giữ cổ tay tương đối yên và
 **duỗi → co → duỗi → co → duỗi các ngón** trong khoảng 1–3 giây. Ít nhất ba
@@ -120,6 +122,7 @@ bai06_turtlebot4/visualization.py             Vẽ 21 landmark và đường n�
 bai06_turtlebot4/robot_behavior_node.py       Chọn/xác nhận, odom, vận tốc, dừng
 launch/demo.launch.py                       Gazebo, bridge, robot và hai node
 config/gestures.yaml                        Ngưỡng, watchdog, tốc độ, quãng đường
+config/simulation.yaml                      Cấu hình Create 3 lúc khởi động
 worlds/gesture_arena.sdf                    Sàn trống 12 x 12 m
 models/gesture_recognizer.task              Model MediaPipe chính thức
 scripts/run_demo.sh                        Mở toàn bộ demo

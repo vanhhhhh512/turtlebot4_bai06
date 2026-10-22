@@ -7,6 +7,7 @@ from rclpy.action import ActionClient
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from controller_manager_msgs.srv import ConfigureController, ListControllers, LoadController, SwitchController
+from rcl_interfaces.srv import GetParameters
 from irobot_create_msgs.action import Undock
 from irobot_create_msgs.msg import DockStatus
 from nav_msgs.msg import Odometry
@@ -29,6 +30,7 @@ class SimulationReadyNode(Node):
             'load': self.create_client(LoadController, '/controller_manager/load_controller'),
             'configure': self.create_client(ConfigureController, '/controller_manager/configure_controller'),
             'switch': self.create_client(SwitchController, '/controller_manager/switch_controller'),
+            'config': self.create_client(GetParameters, '/motion_control/get_parameters'),
         }
         self.undock = ActionClient(self, Undock, '/undock')
 
@@ -92,6 +94,17 @@ class SimulationReadyNode(Node):
             self.pump(0.5)
         else:
             raise RuntimeError('Controller preparation timed out')
+        self.reason = 'CHECKING_SIMULATION_CONFIG'
+        while rclpy.ok() and time.monotonic() < deadline:
+            response = self.call('config', GetParameters.Request(names=['safety_override']))
+            if response is not None and response.values:
+                if response.values[0].string_value != 'backup_only':
+                    raise RuntimeError('motion_control did not load config/simulation.yaml')
+                self.get_logger().info('Verified launch configuration: safety_override=backup_only')
+                break
+            self.pump(0.5)
+        else:
+            raise RuntimeError('Cannot verify motion_control launch configuration')
         self.reason = 'WAITING_FOR_DOCK_AND_ODOM'
         while rclpy.ok() and time.monotonic() < deadline:
             if self.docked is not None and time.monotonic() - self.odom_at < 1.0:
