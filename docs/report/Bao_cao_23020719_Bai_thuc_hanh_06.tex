@@ -110,6 +110,8 @@ Topic & Kiểu message & Vai trò\\\midrule
 \code{config/gestures.yaml} lưu ngưỡng nhận diện, tốc độ và thời gian chờ.
 \code{launch/demo.launch.py} mở Gazebo, bridge, robot và hai node;
 \code{worlds/gesture_arena.sdf} tạo môi trường trống.
+\code{gazebo_visualization_node.py} đọc world pose để vẽ quỹ đạo và khung bao;
+\code{ign_markers.cpp} gửi marker qua Ignition Transport.
 \clearpage
 
 \section{Nhận diện và quy ước sáu cử chỉ}
@@ -165,8 +167,13 @@ robot dừng. Sau xác nhận có thể bỏ tay khỏi ảnh; robot tự chạy
 World có sàn trống 12 × 12 m, một TurtleBot 4 Standard và dock. Node chuẩn bị
 kiểm tra controller bánh xe, cấu hình lùi và thực hiện undock. Hành vi chỉ được
 xác nhận khi robot đã ra khỏi dock, có odometry mới và không có hazard.
-\fig{figures/gazebo_arena.png}{.98}{Môi trường gesture\_arena trong Gazebo; robot và dock nằm trong vùng chạy trống.}
-\fig{figures/gazebo_closeup.png}{.88}{TurtleBot 4 Standard và dock trong cùng phiên mô phỏng.}
+\code{gazebo_visualization_node} vẽ vệt xanh dương từ vị trí robot đã đi và khung
+bao xanh lá bám theo pose/hướng của mô hình. Khung tham chiếu 0,38 × 0,38 × 0,38 m
+có lề quanh robot Standard. Tác vụ mới xóa vệt cũ; tạm dừng và tiếp tục giữ nguyên
+vệt. Marker chỉ nằm trong GUI và không có collision. Lượt kiểm tra đi tròn ghi
+251 điểm, gồm một lần PAUSED/resume; vệt không bị xóa khi tiếp tục.
+\fig{figures/gazebo_arena.png}{.98}{Vệt quỹ đạo xanh dương và khung bao 3D xanh lá trong Gazebo, lấy từ world pose thật.}
+\fig{figures/gazebo_closeup.png}{.82}{Cận cảnh mô hình TurtleBot 4 Standard và dock.}
 \clearpage
 
 \section{Điều khiển hành vi và cơ chế dừng}

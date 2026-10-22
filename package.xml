@@ -5,6 +5,11 @@
   <maintainer email="vanhhhhh512@users.noreply.github.com">Đỗ Việt Anh</maintainer>
   <license>MIT</license>
   <buildtool_depend>ament_python</buildtool_depend>
+  <build_depend>pkg-config</build_depend>
+  <build_depend>python3-dev</build_depend>
+  <build_depend>libignition-transport11-dev</build_depend>
+  <build_depend>libignition-msgs8-dev</build_depend>
+  <exec_depend>tf2_msgs</exec_depend>
   <exec_depend>rclpy</exec_depend><exec_depend>std_msgs</exec_depend>
   <exec_depend>rcl_interfaces</exec_depend>
   <exec_depend>controller_manager_msgs</exec_depend>

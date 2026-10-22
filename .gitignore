@@ -17,3 +17,5 @@ python_deps/
 *.toc
 *.out
 *.synctex.gz
+
+*.so

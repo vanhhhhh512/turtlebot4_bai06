@@ -24,3 +24,12 @@ robot_behavior_node:
     leg_distance: 0.40
     circle_radius: 0.60
     arena_limit: 4.5
+
+gazebo_visualization_node:
+  ros__parameters:
+    update_hz: 10.0
+    trail_spacing_m: 0.015
+    max_trail_points: 2000
+    box_size_x: 0.38
+    box_size_y: 0.38
+    box_size_z: 0.38

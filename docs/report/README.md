@@ -10,3 +10,5 @@ Liên kết GitHub và Drive ở hai lệnh `\github`, `\drive` trong phần đ�
 Bản hiện tại: 13 trang, 15 hình; Open Palm tạm dừng giữ tiến độ, Thumb Up tiếp tục,
 Closed Fist hủy. Sau xác nhận có thể bỏ tay khỏi ảnh. Kết quả điều khiển được
 kiểm tra bằng nhãn thử trong Gazebo; đồ thị webcam chỉ dùng landmarks, không có ảnh cá nhân.
+
+Hình mô phỏng đã bổ sung vệt world pose và khung bao 3D bám theo robot trong Gazebo.

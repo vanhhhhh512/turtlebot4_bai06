@@ -2,7 +2,7 @@
 
 Chương trình dùng webcam laptop, OpenCV và MediaPipe Gesture Recognizer để nhận
 cử chỉ tay, sau đó điều khiển TurtleBot 4 trong Gazebo qua ROS 2.
-Hai node Python chạy độc lập: node nhận diện phát `/detected_gesture`, node hành vi
+Hai node chính bằng Python chạy độc lập: node nhận diện phát `/detected_gesture`, node hành vi
 quản lý chọn, xác nhận và phát `/cmd_vel`.
 
 ## Cài đặt
@@ -13,6 +13,7 @@ Cần Ubuntu 22.04, ROS 2 Humble và TurtleBot 4 Simulator đã cấu hình repo
 ```bash
 sudo apt update
 sudo apt install xdotool ros-humble-turtlebot4-simulator \
+  build-essential pkg-config python3-dev libignition-transport11-dev libignition-msgs8-dev \
   python3-colcon-common-extensions python3-pip python3-opencv python3-numpy python3-pil
 mkdir -p ~/turtlebot6_github_ws/src
 cd ~/turtlebot6_github_ws/src
@@ -152,12 +153,34 @@ Có thể đặt `BAI06_OUTPUT_DIR`, `BAI06_ROS_DOMAIN_ID`, `BAI06_MODEL`,
 Máy phát triển dùng source tại `/home/admin1/xla/wk4/week6/ros2_ws/src/bai06_turtlebot4`
 và tận dụng underlay TurtleBot 4 đã cài từ các bài trước.
 
+## Quỹ đạo và bounding box trong Gazebo
+
+Demo tự mở `gazebo_visualization_node`: vệt xanh dương là đường robot đã đi,
+khung xanh lá bao quanh robot và xoay theo pose mô hình. Vệt lấy từ world pose
+thật của Gazebo, không phải quỹ đạo dự kiến hoặc tọa độ odom chưa đổi hệ trục.
+Mỗi tác vụ mới xóa vệt cũ; PAUSED/Thumb Up tiếp tục giữ nguyên vệt đang có.
+Chào tại chỗ chỉ có một điểm/vệt rất ngắn vì robot không di chuyển theo đường tròn.
+
+Khung bao có kích thước tham chiếu 0,38 × 0,38 × 0,38 m, có lề quanh model Standard;
+khung được dựng từ mô hình đã biết và pose mô phỏng.
+Kích thước, chu kỳ cập nhật và khoảng lấy mẫu nằm ở phần
+`gazebo_visualization_node` trong `config/gestures.yaml`. Mặc định cập nhật 10 Hz,
+lấy điểm cách nhau 1,5 cm, giữ tối đa 2.000 điểm. Marker chỉ nằm ở GUI, không có
+collision và không xuất hiện trong ảnh cảm biến mô phỏng. Node này không phát `/cmd_vel`.
+
+`show_gazebo_visuals:=false` tắt phần hiển thị khi launch. Gazebo dùng plugin
+MarkerManager mặc định; client kết nối lại nếu GUI mở muộn. Phần gửi marker dùng
+kết nối Ignition Transport thường trực và worker riêng, không chạy `ign service`
+lặp lại hoặc chặn node điều khiển.
+
 ## Source và dữ liệu ghi nhận
 
 ```text
 bai06_turtlebot4/gesture_recognition_node.py  Webcam -> MediaPipe -> nhãn/khung tay
 bai06_turtlebot4/wave_detector.py             Wave theo chuyển động ngón và ưu tiên dừng
 bai06_turtlebot4/static_gesture_filter.py     Lọc class tĩnh, ngưỡng nhận/giữ Thumb Up
+bai06_turtlebot4/gazebo_visualization_node.py Quỹ đạo thực và khung bao trong Gazebo
+bai06_turtlebot4/ign_markers.cpp              Client gửi marker tới Gazebo GUI
 bai06_turtlebot4/simulation_ready_node.py     Controller, undock và trạng thái READY
 bai06_turtlebot4/visualization.py             Vẽ 21 landmark và đường nối
 bai06_turtlebot4/robot_behavior_node.py       Chọn/xác nhận, odom, vận tốc, dừng
