@@ -11,6 +11,7 @@ gesture_recognition_node:
     wave_min_travel: 0.025
     wave_hand_scale: 0.30
     wave_min_reversals: 2
+    wave_confirm_window_s: 3.0
 robot_behavior_node:
   ros__parameters:
     watchdog_s: 0.50

@@ -30,6 +30,7 @@ class GestureRecognitionNode(Node):
             ('output_dir', ''),
             ('wave_window_s', 2.4), ('wave_min_travel', 0.025),
             ('wave_hand_scale', 0.30), ('wave_min_reversals', 2),
+            ('wave_confirm_window_s', 3.0),
         ]:
             self.declare_parameter(name, value)
         self.output_dir = self.get_parameter('output_dir').value
@@ -60,6 +61,7 @@ class GestureRecognitionNode(Node):
         self.behavior_state = 'IDLE'
         self.selected = None
         self.router = GestureRouter(
+            confirm_window_s=float(self.get_parameter('wave_confirm_window_s').value),
             window_s=float(self.get_parameter('wave_window_s').value),
             min_travel=float(self.get_parameter('wave_min_travel').value),
             hand_scale=float(self.get_parameter('wave_hand_scale').value),
@@ -131,12 +133,17 @@ class GestureRecognitionNode(Node):
             draw_hand_landmarks(frame, result.hand_landmarks)
             display = cv2.copyMakeBorder(frame, 105, 65, 0, 0,
                                          cv2.BORDER_CONSTANT, value=(20, 20, 20))
-            score = 'motion rule' if label == 'Wave' else f'model {confidence:.2f}'
-            cv2.putText(display, f'{label} | {score}', (12, 29),
+            pending = self.router.transition_until > now
+            title = ('WAVE - GREET SELECTED' if pending else
+                     'OPEN HAND - wave left/right' if label == 'Open_Palm'
+                     and self.behavior_state == 'IDLE' else label)
+            score = 'motion rule' if pending or label == 'Wave' else f'model {confidence:.2f}'
+            cv2.putText(display, f'{title} | {score}', (12, 29),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.75, (70, 255, 100), 2)
             cv2.putText(display, self.behavior, (12, 57),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.48, (240, 240, 240), 1)
-            hint = ('WAVE selected: THUMB UP now' if label == 'Wave'
+            hint = (f'THUMB UP to confirm | {self.router.transition_until - now:.1f}s'
+                    if pending
                     else 'THUMB UP to confirm' if self.behavior_state == 'SELECTED'
                     else 'Keep one hand visible' if self.behavior_state == 'RUNNING'
                     else f'Wave open hand L-R-L | turns {self.router.wave.reversals}/2'
@@ -145,7 +152,7 @@ class GestureRecognitionNode(Node):
             cv2.putText(display, hint, (12, 85),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.47, (0, 220, 255), 1)
             y = display.shape[0] - 39
-            cv2.putText(display, 'OPEN PALM: STOP | CLOSED FIST: CANCEL', (12, y),
+            cv2.putText(display, 'RUNNING: OPEN PALM stops | CLOSED FIST cancels', (12, y),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.51, (230, 230, 230), 1)
             cv2.putText(display, 'Lost hand / signal: stop. Select + confirm to restart.',
                         (12, y + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.44, (180, 180, 180), 1)

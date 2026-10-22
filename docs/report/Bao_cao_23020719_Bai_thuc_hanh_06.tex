@@ -139,8 +139,10 @@ không tạo Wave; mất tay hoặc kết quả quá cũ xóa chuỗi.
 
 \textbf{Phân biệt Wave và Open Palm.}
 Khi robot đang chạy, Open Palm được chuyển thẳng thành lệnh dừng; không chờ nhận
-Wave. Khi đứng yên, Wave chỉ tạo lựa chọn chào. Sau sự kiện Wave có tối đa 0,6 s
-đổi từ tay mở sang Thumb Up; giữ tay mở quá khoảng đó sẽ xóa lựa chọn.
+Wave. Khi đứng yên, Wave chỉ tạo lựa chọn chào. Cửa sổ hiển thị bộ đếm 3 s để
+đổi từ tay mở sang Thumb Up; tay mở trong đoạn này giữ lựa chọn, không tạo lệnh
+chạy. Hết đoạn chuyển mà vẫn mở tay thì xóa lựa chọn. UNKNOWN ngắn tối đa 0,18 s
+không xóa các mẫu xác nhận; nó không gia hạn watchdog. Mất tay vẫn dừng ngay.
 
 Cửa sổ webcam hiển thị ảnh gương, khung tay, nhãn, điểm model và trạng thái robot.
 Chỉ một tay được dùng để điều khiển. Kết quả có nhiều tay được coi là mơ hồ và làm

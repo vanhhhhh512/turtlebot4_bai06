@@ -67,7 +67,9 @@ Mọi chuyển động, kể cả chào, đều cần chọn rồi xác nhận. 
 cử chỉ hợp lệ trong ảnh để duy trì tín hiệu. Rút tay, camera lỗi, nhiều tay hoặc
 mất kết quả hợp lệ quá 0,5 s làm robot dừng; muốn chạy tiếp phải chọn và xác nhận lại.
 
-Pointing Up, Victory và Thumbs Up cần ít nhất 3 kết quả cùng nhãn qua 0,2 s.
+Pointing Up, Victory và Thumbs Up cần ít nhất 3 kết quả hợp lệ qua 0,2 s.
+Một frame UNKNOWN xen giữa không xóa chuỗi nếu cách mẫu hợp lệ trước tối đa
+0,18 s; UNKNOWN không gia hạn watchdog. Lệnh dừng/hủy không chờ bộ lọc này.
 Giữ nguyên cử chỉ chỉ tạo một sự kiện; giữ Thumbs Up không kích hoạt lại sau khi
 hành vi hoàn thành.
 
@@ -79,14 +81,19 @@ xóa chuỗi nếu landmarks vẫn cho thấy ít nhất ba ngón duỗi. Một 
 phân loại được chỉ được nối tối đa 0,2 s; mất tay, nhiều tay hoặc kết quả quá cũ
 xóa chuỗi ngay. Tay đứng yên và chuyển động dọc không được tính là Wave.
 
-Cửa sổ hiện `turns 0/2`, `1/2` khi đang thu chuyển động. Khi hiện `Wave` hoặc
-`SELECTED / GREET`, đổi ngay sang Thumbs Up để xác nhận. Nhãn Wave chỉ được giữ
-trong đoạn chuyển tối đa 0,6 s trên các frame tay mở mới; giữ tay mở quá đoạn này
-sẽ xóa lựa chọn. Khi robot đang chạy, Open Palm luôn dừng ngay, kể cả tay mở
-được xác định bằng landmarks khi model tĩnh trả về `UNKNOWN`.
+Cửa sổ hiện `turns 0/2`, `1/2` khi đang thu chuyển động. Khi nhận Wave sẽ hiện
+`WAVE - GREET SELECTED` cùng bộ đếm **3 giây để đổi sang Thumbs Up**. Các frame
+tay mở mới trong đoạn này giữ lựa chọn chào, không lặp sự kiện chọn. UNKNOWN
+ngắn khi đổi tư thế không xóa bộ đếm; mất tay, nhiều tay, dữ liệu quá cũ hoặc
+nắm tay hủy ngay. Hết 3 giây mà vẫn giữ tay mở thì xóa lựa chọn.
+
+Khi robot đang chờ, cửa sổ ghi `OPEN HAND - wave left/right` để hướng dẫn chọn
+Wave. **Khi robot đang chạy, Open Palm luôn dừng ngay**, kể cả đang còn bộ đếm
+hoặc tay mở được xác định bằng landmarks khi model tĩnh trả về `UNKNOWN`.
 
 Các ngưỡng Wave nằm trong `config/gestures.yaml`: `wave_window_s`,
-`wave_min_travel`, `wave_hand_scale`, `wave_min_reversals`. Log `gestures.jsonl`
+`wave_min_travel`, `wave_hand_scale`, `wave_min_reversals`, `wave_confirm_window_s`.
+Đoạn chuyển xác nhận được chặn tối đa 3 giây. Log `gestures.jsonl`
 có thêm điểm chuyển động, ngưỡng và số lần đổi chiều để kiểm tra từng lượt.
 
 Có thể đặt `BAI06_OUTPUT_DIR`, `BAI06_ROS_DOMAIN_ID`, `BAI06_MODEL`,

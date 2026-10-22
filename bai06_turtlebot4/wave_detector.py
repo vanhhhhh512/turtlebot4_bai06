@@ -98,15 +98,16 @@ class WaveDetector:
 class GestureRouter:
     """Open Palm always passes through while RUNNING.
 
-    After a Wave event, ignore only the same open-hand transition, for at
-    most 0.6 seconds. A palm held open after that is STOP. Any other pose
-    ends the transition immediately. The Wave label remains visible only on
-    fresh open-hand frames during this bounded handoff; it never masks a stop
-    while RUNNING or a missing/stale/multiple-hand result.
+    After a Wave event, allow a bounded three-second confirmation handoff.
+    Fresh open-hand frames preserve the selection during that interval; brief
+    UNKNOWN frames do not erase it or provide a heartbeat. Missing/stale hands,
+    cancel, another choice or RUNNING always end the handoff.
     """
-    def __init__(self, **wave_options):
+    def __init__(self, confirm_window_s=3.0, **wave_options):
         self.wave = WaveDetector(**wave_options)
         self.transition_until = 0.0
+        self.confirm_window_s = min(max(float(confirm_window_s), 0.5), 3.0)
+        self.last_signal_at = -1e9
 
     def update(self, now, raw, palm=None, state='IDLE'):
         signal_lost = raw in {'NO_HAND', 'CAMERA_ERROR', 'MULTIPLE_HANDS', 'STALE_RESULT'}
@@ -115,21 +116,27 @@ class GestureRouter:
             self.wave.reset()
             self.transition_until = 0.0
             return 'Open_Palm' if open_candidate else raw
-        if signal_lost or raw in {'Closed_Fist', 'Thumb_Up', 'Pointing_Up', 'Victory'}:
+        if signal_lost or raw in {'Closed_Fist', 'Pointing_Up', 'Victory'}:
             self.wave.reset()
             self.transition_until = 0.0
+            return raw
+        if raw == 'Thumb_Up':
+            self.wave.reset()
+            self.last_signal_at = now
             return raw
         if not open_candidate:
             # A brief unclassified pose may bridge samples, but never supplies
             # a sample, an event or a heartbeat. Actual tracking loss clears it.
             if self.wave.samples and now - self.wave.samples[-1][0] > self.wave.gap_s:
                 self.wave.reset()
-            self.transition_until = 0.0
+            if now - self.last_signal_at > self.wave.gap_s:
+                self.transition_until = 0.0
             return raw
+        self.last_signal_at = now
         if now < self.transition_until:
             return 'Wave'
         width = palm[2] if len(palm) > 2 else None
         if self.wave.update(now, palm[0], palm[1], True, width):
-            self.transition_until = now + 0.6
+            self.transition_until = now + self.confirm_window_s
             return 'Wave'
         return 'Open_Palm'

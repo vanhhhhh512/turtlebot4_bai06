@@ -83,6 +83,7 @@ class RobotBehaviorNode(Node):
         self.candidate = None
         self.candidate_since = 0.0
         self.candidate_count = 0
+        self.candidate_last_at = 0.0
         self.fired = False
         self.last_label = None
         self.last_cmd = (0.0, 0.0)
@@ -183,12 +184,21 @@ class RobotBehaviorNode(Node):
             self.candidate = label
             self.fired = False
             return
-        if label != self.candidate:
+        if label == 'UNKNOWN':
+            # A single uncertain frame while changing pose must not discard
+            # valid confirmation samples. It never refreshes the watchdog.
+            if now - self.candidate_last_at > 0.18:
+                self.candidate = None
+                self.candidate_count = 0
+                self.fired = False
+            return
+        if label != self.candidate or now - self.candidate_last_at > 0.18:
             self.candidate = label
             self.candidate_since = now
             self.candidate_count = 0
             self.fired = False
         self.candidate_count += 1
+        self.candidate_last_at = now
         if self.fired or label not in CHOICES and label != 'Thumb_Up':
             return
         if label != 'Wave' and (now - self.candidate_since < self.cfg['stable_s']
