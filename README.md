@@ -59,8 +59,7 @@ xác nhận, có thể bỏ tay khỏi camera; robot tự chạy hết tác vụ
 Thumb Up xác nhận để tiếp tục phần còn lại. Ví dụ đang lùi ở lượt 3/4 thì tiếp
 tục chặng lùi đó, không quay lại lượt 1. Có thể bỏ tay ra trong lúc PAUSED;
 robot đứng yên đến khi nhận Thumb Up. **Closed Fist → IDLE:** xóa lựa chọn và
-tiến độ; muốn chạy cần chọn lại rồi xác nhận. Open Palm khi mới chọn nhưng
-chưa chạy vẫn giữ lựa chọn; Thumb Up sau đó bắt đầu tác vụ.
+tiến độ; muốn chạy cần chọn lại rồi xác nhận.
 
 ## Tài liệu tham khảo
 
