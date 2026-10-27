@@ -1,0 +1,35 @@
+gesture_recognition_node:
+  ros__parameters:
+    device: 0
+    confidence: 0.60
+    thumb_confidence: 0.55
+    thumb_hold_confidence: 0.45
+    frame_width: 640
+    frame_height: 480
+    frame_rate: 30.0
+    show_window: true
+    mirror: true
+    max_result_age_s: 0.25
+    wave_window_s: 4.0
+    wave_min_cycles: 2
+    wave_min_swing: 0.18
+    wave_confirm_window_s: 3.0
+robot_behavior_node:
+  ros__parameters:
+    watchdog_s: 0.50
+    odom_timeout_s: 0.50
+    stable_s: 0.20
+    linear_speed: 0.12
+    angular_speed: 0.42
+    leg_distance: 0.40
+    circle_radius: 0.60
+    arena_limit: 4.5
+
+gazebo_visualization_node:
+  ros__parameters:
+    update_hz: 10.0
+    trail_spacing_m: 0.015
+    max_trail_points: 2000
+    box_size_x: 0.38
+    box_size_y: 0.38
+    box_size_z: 0.38
