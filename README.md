@@ -2,8 +2,8 @@
 
 Chương trình dùng webcam laptop, OpenCV và MediaPipe Gesture Recognizer để nhận
 cử chỉ tay, sau đó điều khiển TurtleBot 4 trong Gazebo qua ROS 2.
-Hai node chính bằng Python chạy độc lập: node nhận diện phát `/detected_gesture`, node hành vi
-quản lý chọn, xác nhận và phát `/cmd_vel`.
+Hai node chính bằng Python chạy độc lập: node nhận diện `/detected_gesture`, node hành vi
+quản lý chọn, xác nhận `/cmd_vel`.
 
 ## Cài đặt
 
@@ -29,12 +29,10 @@ source install/setup.bash
 ```
 
 Model `models/gesture_recognizer.task` được đặt sẵn trong repo. Các thư viện Python
-được cài vào thư mục riêng của workspace. Máy đã thử dùng Python 3.10.12,
+được cài vào thư mục riêng của workspace. Dùng Python 3.10.12,
 OpenCV 4.11.0, NumPy 1.26.4 và MediaPipe 0.10.21.
 
 ## Chạy toàn bộ bằng một lệnh
-
-Trong checkout Bài 06, chạy:
 
 ```bash
 cd ~/turtlebot6_github_ws/src/bai06_turtlebot4
@@ -44,16 +42,6 @@ cd ~/turtlebot6_github_ws/src/bai06_turtlebot4
 Script build package, tạo thư mục output mới, ROS domain và Gazebo partition
 riêng; mở Gazebo, TurtleBot 4, webcam và hai node. Robot thực hiện action `/undock`
 trong bước chuẩn bị rồi về chờ. Chỉ chọn cử chỉ khi robot đã ra khỏi dock.
-Launch Bài 06 cấu hình riêng controller Gazebo với `safety_override=backup_only`
-để cho phép lùi hết chặng 0,40 m. Node chờ cấu hình thành công trước khi cho xác
-nhận chạy; giới hạn tốc độ, vùng chạy, dừng/hủy và theo dõi hazard vẫn hoạt động.
-Cấu hình này chỉ được bật bởi launch mô phỏng Bài 06.
-
-Cửa sổ webcam hiển thị **21 điểm và đường nối bàn tay, nhãn, confidence, trạng thái
-robot và số chu kỳ**. Ảnh được lật gương; phần chữ đặt ngoài ảnh để không che tay.
-Gazebo và webcam được căn cạnh nhau để quan sát, quay video. Không dùng teleop
-hoặc bàn phím phát vận tốc trong lúc demo. Nhấn Ctrl+C tại terminal chạy script
-để đóng phiên.
 
 | Cử chỉ | Hành vi |
 |---|---|
@@ -62,14 +50,10 @@ hoặc bàn phím phát vận tốc trong lúc demo. Nhấn Ctrl+C tại termina
 | Victory: giơ hai ngón chữ V | Chọn đi tròn một vòng, bán kính 0,60 m |
 | Thumbs Up: giơ ngón cái | Xác nhận chạy; khi PAUSED thì tiếp tục phần còn lại |
 | Open Palm: xòe cả bàn tay | Tạm dừng ngay, giữ hành vi và tiến độ (PAUSED) |
-| Closed Fist: nắm tay | Hủy hành vi và toàn bộ tiến độ, trở về chờ (IDLE) |
+| Closed Fist: nắm tay | Hủy hành vi và toàn bộ tiến độ, trở về chờ |
 
 Mọi chuyển động, kể cả chào, đều cần chọn rồi xác nhận. **Sau khi Thumb Up
 xác nhận, có thể bỏ tay khỏi ảnh; robot tự chạy hết tác vụ theo odometry.**
-Frame `NO_HAND` hoặc `UNKNOWN` mới vẫn cho biết camera/node nhận diện đang chạy.
-Không suy `Open_Palm` từ riêng hình dạng landmarks khi model trả `None`/`UNKNOWN`;
-khung xương sai thoáng qua lúc rút Thumb Up khỏi ảnh không tạo lệnh tạm dừng.
-Ở trạng thái SELECTED, bỏ tay ra sẽ hủy lựa chọn.
 
 **Open Palm → PAUSED:** vận tốc về 0 ngay, giữ pha, chu kỳ và tiến độ chặng.
 Thumb Up xác nhận để tiếp tục phần còn lại. Ví dụ đang lùi ở lượt 3/4 thì tiếp
@@ -77,131 +61,6 @@ tục chặng lùi đó, không quay lại lượt 1. Có thể bỏ tay ra tron
 robot đứng yên đến khi nhận Thumb Up. **Closed Fist → IDLE:** xóa lựa chọn và
 tiến độ; muốn chạy cần chọn lại rồi xác nhận. Open Palm khi mới chọn nhưng
 chưa chạy vẫn giữ lựa chọn; Thumb Up sau đó bắt đầu tác vụ.
-
-Camera đọc lỗi/đóng, kết quả quá cũ, nhiều tay hoặc node nhận diện im lặng quá
-0,5 s vẫn làm robot dừng và hủy tác vụ. Mất odom, hazard và giới hạn vùng chạy
-vẫn được kiểm tra. Kênh hoạt động trở lại không tự chạy lại tác vụ đã hủy.
-
-Pointing Up, Victory và Thumbs Up cần ít nhất 3 kết quả hợp lệ qua 0,2 s.
-Một frame UNKNOWN xen giữa không xóa chuỗi nếu cách mẫu hợp lệ trước tối đa
-0,18 s; UNKNOWN không xác nhận hoặc gia hạn lựa chọn chưa chạy. Sau xác nhận,
-watchdog kiểm tra kết quả camera mới, không bắt giữ một cử chỉ hợp lệ. Lệnh
-tạm dừng/hủy không chờ bộ lọc này.
-Giữ nguyên cử chỉ chỉ tạo một sự kiện; giữ Thumbs Up không kích hoạt lại sau khi
-hành vi hoàn thành.
-
-Script tự chuẩn bị controller và cho robot ra khỏi dock. Camera luôn hiển thị
-nhận diện cử chỉ; nếu robot còn trong dock hoặc thiếu odom thì lý do nằm ở dòng
-trạng thái robot. `simulation_ready_node` kiểm tra/kích hoạt hai controller và
-gọi `/undock`; controller vẫn chặn chuyển động khi robot chưa sẵn sàng.
-
-`config/simulation.yaml` cấu hình `safety_override=backup_only` cho đúng node
-`/motion_control` ngay khi Gazebo khởi động để lùi đủ quãng đường. Node chuẩn bị
-đọc lại giá trị này, kiểm tra controller và undock trước phần điều khiển.
-Không có bước xin quyền lùi trong lúc làm cử chỉ; cả ba hành vi dùng chung
-luồng chọn → Thumbs Up → thực hiện. Camera nhận diện liên tục trong lúc chuẩn bị.
-
-**Wave:** xòe **5 ngón** hướng về webcam, rồi **vẫy/co–duỗi nhẹ các ngón
-hai lần trong tối đa 4 giây**. Ít nhất ba ngón trỏ/giữa/áp út/út cử động;
-không cần nắm kín tay hoặc đưa cả bàn tay sang trái–phải.
-Chương trình đo vị trí đầu ngón trong hệ tọa độ gắn với lòng bàn tay, lọc trung
-vị ba mẫu và đếm hai nhịp cho từng ngón riêng. Có thể lắc ngón sang bên hoặc
-co–duỗi; các ngón không cần cùng nhịp hay trở lại mức duỗi ban đầu. Chuyển động
-cả bàn tay được loại bằng hệ tọa độ này. Nhãn tĩnh thoáng qua không xóa lịch sử Wave.
-Tay xòe giữ yên là Open Palm; dịch cả bàn tay hoặc chỉ một/hai ngón động không
-đủ tạo Wave.
-
-Khi nhận đủ hai chu kỳ, màn hình hiện `WAVE - GREET SELECTED` và có **3 giây
-đổi sang Thumbs Up**. Sau xác nhận có thể bỏ tay ra để robot chào hết ba pha.
-Wave chỉ chọn, chưa phát vận tốc. Topic phát `Wave` một lần; `WAVE_PENDING`
-chỉ duy trì lựa chọn chào trên frame tay mới, không tạo thêm lần chọn và không
-cho phép robot đang chạy tiếp tục bằng nhãn này. Mất tay, nhiều tay hoặc kết quả
-quá cũ xóa lựa chọn khi đang SELECTED. Hết đoạn xác nhận mà vẫn mở tay thì
-chuyển PAUSED, giữ lựa chọn đến khi Thumb Up hoặc Closed Fist.
-
-**Thumb Up:** ngưỡng chung của các class là 0,60. Riêng Thumb Up dưới mức
-này được nhận từ 0,55 và duy trì từ 0,45 khi ngón cái duỗi, các ngón còn lại co.
-Mỗi frame vẫn phải có dự đoán `Thumb_Up` mới từ model; không lấy nhãn cũ để duy
-trì tín hiệu. Mất tay, nhiều tay, kết quả quá cũ hoặc đổi class xóa trạng thái
-này. Node hành vi vẫn cần ít nhất ba mẫu qua 0,2 giây để xác nhận.
-
-**Open Palm khi RUNNING tạm dừng ngay**, không phụ thuộc bộ đếm Wave; Thumb Up
-tiếp tục. Nắm tay khi RUNNING/PAUSED hủy ngay. Khi đang thu Wave hoặc chờ xác nhận, một frame co ngón
-có thể bị model gọi là Closed Fist; chỉ nắm giữ 0,4 giây mới hủy để không nhầm
-với pha co ngón của Wave. Nắm tay khi không thu Wave vẫn là lệnh hủy.
-
-Cấu hình Wave: `wave_window_s`, `wave_min_cycles`, `wave_min_swing`,
-`wave_confirm_window_s`. Log có `finger_extension`, `finger_motion`, `thumb_open`,
-`finger_phase`, `wave_cycles`, `wave_finger_cycles`, `model_label`, `ready`, `blocked_reason`.
-
-Có thể đặt `BAI06_OUTPUT_DIR`, `BAI06_ROS_DOMAIN_ID`, `BAI06_MODEL`,
-`BAI06_PYTHON_DEPS` hoặc `BAI06_UNDERLAY` trước lệnh chạy. Dùng
-`BAI06_SKIP_BUILD=1 ./scripts/run_demo.sh` khi package đã build.
-Máy phát triển dùng source tại `/home/admin1/xla/wk4/week6/ros2_ws/src/bai06_turtlebot4`
-và tận dụng underlay TurtleBot 4 đã cài từ các bài trước.
-
-## Quỹ đạo và bounding box trong Gazebo
-
-Demo tự mở `gazebo_visualization_node`: vệt xanh dương là đường robot đã đi,
-khung xanh lá bao quanh robot và xoay theo pose mô hình. Vệt lấy từ world pose
-thật của Gazebo, không phải quỹ đạo dự kiến hoặc tọa độ odom chưa đổi hệ trục.
-Mỗi tác vụ mới xóa vệt cũ; PAUSED/Thumb Up tiếp tục giữ nguyên vệt đang có.
-Chào tại chỗ chỉ có một điểm/vệt rất ngắn vì robot không di chuyển theo đường tròn.
-
-Khung bao có kích thước tham chiếu 0,38 × 0,38 × 0,38 m, có lề quanh model Standard;
-khung được dựng từ mô hình đã biết và pose mô phỏng.
-Kích thước, chu kỳ cập nhật và khoảng lấy mẫu nằm ở phần
-`gazebo_visualization_node` trong `config/gestures.yaml`. Mặc định cập nhật 10 Hz,
-lấy điểm cách nhau 1,5 cm, giữ tối đa 2.000 điểm. Marker chỉ nằm ở GUI, không có
-collision và không xuất hiện trong ảnh cảm biến mô phỏng. Node này không phát `/cmd_vel`.
-
-`show_gazebo_visuals:=false` tắt phần hiển thị khi launch. Gazebo dùng plugin
-MarkerManager mặc định; client kết nối lại nếu GUI mở muộn. Phần gửi marker dùng
-kết nối Ignition Transport thường trực và worker riêng, không chạy `ign service`
-lặp lại hoặc chặn node điều khiển.
-
-## Source và dữ liệu ghi nhận
-
-```text
-bai06_turtlebot4/gesture_recognition_node.py  Webcam -> MediaPipe -> nhãn/khung tay
-bai06_turtlebot4/wave_detector.py             Wave theo chuyển động ngón và ưu tiên dừng
-bai06_turtlebot4/static_gesture_filter.py     Lọc class tĩnh, ngưỡng nhận/giữ Thumb Up
-bai06_turtlebot4/gazebo_visualization_node.py Quỹ đạo thực và khung bao trong Gazebo
-bai06_turtlebot4/ign_markers.cpp              Client gửi marker tới Gazebo GUI
-bai06_turtlebot4/simulation_ready_node.py     Controller, undock và trạng thái READY
-bai06_turtlebot4/visualization.py             Vẽ 21 landmark và đường nối
-bai06_turtlebot4/robot_behavior_node.py       Chọn/xác nhận, odom, vận tốc, dừng
-launch/demo.launch.py                       Gazebo, bridge, robot và hai node
-config/gestures.yaml                        Ngưỡng, watchdog, tốc độ, quãng đường
-config/simulation.yaml                      Cấu hình Create 3 lúc khởi động
-worlds/gesture_arena.sdf                    Sàn trống 12 x 12 m
-models/gesture_recognizer.task              Model MediaPipe chính thức
-scripts/run_demo.sh                        Mở toàn bộ demo
-scripts/arrange_windows.py                  Căn hai cửa sổ
-```
-
-Thư mục output gồm `gestures.jsonl`, `behavior.jsonl`, `motion.csv` và
-`launch.log`. File gesture lưu nhãn/điểm/timestamp từng kết quả mới; file behavior
-lưu chọn, xác nhận và lý do dừng. Motion CSV ghi pose odom cùng lệnh vận tốc ở timer
-20 Hz. Thông số quãng đường và bán kính trong YAML là cấu hình điều khiển.
-
-Node hành vi dùng odom kết thúc từng chặng và góc quay tích lũy để kết thúc một
-vòng. Trước pha đi tròn, robot xoay hướng tại chỗ để tâm vòng nằm xa dock.
-Vận tốc đầu ra được chặn ở 0,15 m/s và 0,5 rad/s. Mất odom, có bump/cliff/stall/
-wheel drop hoặc ra khỏi vùng `|x|, |y| <= 4,5 m` làm dừng hành vi.
-
-## Interface chính
-
-`/detected_gesture` (`std_msgs/msg/String`), `/cmd_vel`
-(`geometry_msgs/msg/Twist`), `/odom`, `/dock_status`, `/hazard_detection`, `/undock`.
-
-Nhãn chuẩn là `Wave`, `Pointing_Up`, `Victory`, `Thumb_Up`, `Open_Palm`,
-`Closed_Fist`; `Thumb_Up` là tên class thật của MediaPipe. `/gesture_status`
-và `/behavior_status` dùng `std_msgs/msg/String` chứa JSON để hiển thị điểm nhận
-diện, trạng thái, pha và chu kỳ. `NO_HAND`, `UNKNOWN`, `MULTIPLE_HANDS`,
-`STALE_RESULT` là các kết quả nội bộ. `NO_HAND`/`UNKNOWN` không chọn hoặc xác
-nhận hành vi; trong tác vụ đã xác nhận, chúng là kết quả camera mới để duy trì
-kênh điều khiển. `CAMERA_ERROR`, `MULTIPLE_HANDS` và `STALE_RESULT` hủy tác vụ.
 
 ## Tài liệu tham khảo
 
