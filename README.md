@@ -53,7 +53,7 @@ trong bước chuẩn bị rồi về chờ. Chỉ chọn cử chỉ khi robot �
 | Closed Fist: nắm tay | Hủy hành vi và toàn bộ tiến độ, trở về chờ |
 
 Mọi chuyển động, kể cả chào, đều cần chọn rồi xác nhận. **Sau khi Thumb Up
-xác nhận, có thể bỏ tay khỏi ảnh; robot tự chạy hết tác vụ theo odometry.**
+xác nhận, có thể bỏ tay khỏi camera; robot tự chạy hết tác vụ theo odometry.**
 
 **Open Palm → PAUSED:** vận tốc về 0 ngay, giữ pha, chu kỳ và tiến độ chặng.
 Thumb Up xác nhận để tiếp tục phần còn lại. Ví dụ đang lùi ở lượt 3/4 thì tiếp
